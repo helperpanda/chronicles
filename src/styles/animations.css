@@ -1,0 +1,53 @@
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideInLeft {
+  from { opacity: 0; transform: translateX(-16px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes comboFlash {
+  0%   { opacity: 0; transform: scale(0.9); }
+  30%  { opacity: 1; transform: scale(1.05); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+@keyframes damageShake {
+  0%, 100% { transform: translateX(0); }
+  20%       { transform: translateX(-4px); }
+  60%       { transform: translateX(4px); }
+}
+
+@keyframes logAppear {
+  from { opacity: 0; transform: translateX(-8px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.6; }
+}
+
+.anim-fadeIn    { animation: fadeIn 0.3s ease forwards; }
+.anim-slideIn   { animation: slideInLeft 0.25s ease forwards; }
+.anim-combo     { animation: comboFlash 0.4s ease forwards; }
+.anim-damage    { animation: damageShake 0.3s ease; }
+.anim-log       { animation: logAppear 0.2s ease forwards; }
+.anim-pulse     { animation: pulse 1.5s ease infinite; }
+
+@keyframes floatUp {
+  0%   { opacity: 1; transform: translateY(0) scale(1); }
+  60%  { opacity: 1; transform: translateY(-28px) scale(1.15); }
+  100% { opacity: 0; transform: translateY(-44px) scale(0.9); }
+}
+
+@keyframes cardPlay {
+  0%   { opacity: 1; transform: translateY(0) scale(1); }
+  40%  { opacity: 0.7; transform: translateY(-18px) scale(1.06); }
+  100% { opacity: 0; transform: translateY(-50px) scale(0.85); }
+}
+
+.anim-float-up  { animation: floatUp 0.75s ease forwards; }
+.anim-card-play { animation: cardPlay 0.4s ease forwards; }
