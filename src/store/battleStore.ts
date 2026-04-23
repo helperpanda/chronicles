@@ -64,13 +64,14 @@ interface BattleStore {
   logCounter: number;
 
   // Actions
-  initBattle: (player: CombatantState, enemy: Monster, deck: SkillCard[], combos: ComboRecipe[], bonusMana?: number) => void;
+  initBattle: (player: CombatantState, enemy: Monster, deck: SkillCard[], combos: ComboRecipe[], bonusMana?: number, initialDraw?: number) => void;
   drawCards: (count: number) => void;
   playCard: (card: SkillCard) => Effect[];
   discardCard: (cardId: string) => void;
   endPlayerTurn: () => void;
   applyEnemyAction: () => Effect[];
   applyEffect: (effect: Effect, source: 'player' | 'enemy') => void;
+  healPlayer: (amount: number) => void;
   addLog: (ko: string, en: string, type: BattleLog['type']) => void;
   setPhase: (phase: BattlePhase) => void;
   resetBattle: () => void;
@@ -134,7 +135,7 @@ export const useBattleStore = create<BattleStore>((set, get) => ({
   log: [],
   logCounter: 0,
 
-  initBattle: (player, enemy, deck, combos, bonusMana = 0) => {
+  initBattle: (player, enemy, deck, combos, bonusMana = 0, initialDraw = 3) => {
     set({
       phase: 'player_turn',
       turn: 1,
@@ -155,7 +156,7 @@ export const useBattleStore = create<BattleStore>((set, get) => ({
       log: [],
       logCounter: 0,
     });
-    get().drawCards(3);
+    get().drawCards(initialDraw);
     get().addLog(`⚔️ ${enemy.name}과(와) 전투 시작!`, `⚔️ Battle starts with ${getMonsterNameEn(enemy.id, enemy.name)}!`, 'info');
   },
 
@@ -200,6 +201,14 @@ export const useBattleStore = create<BattleStore>((set, get) => ({
 
   endPlayerTurn: () => {
     const s = get();
+
+    // Enemy already killed by card this turn — skip enemy action
+    if (s.enemyCurrentHp <= 0) {
+      set({ phase: 'result', playedThisTurn: [], availableCombo: null });
+      get().addLog(`✨ ${s.enemy?.name} 처치!`, `✨ ${s.enemy ? getMonsterNameEn(s.enemy.id, s.enemy.name) : ''} defeated!`, 'info');
+      return;
+    }
+
     set({ phase: 'enemy_turn', playedThisTurn: [], availableCombo: null });
 
     // Tick player statuses
@@ -226,6 +235,13 @@ export const useBattleStore = create<BattleStore>((set, get) => ({
     });
 
     const newS = get();
+    // Player death takes priority — avoids false victory when both die simultaneously
+    if ((newS.player?.hp ?? 1) <= 0) {
+      set({ phase: 'result' });
+      get().addLog(`💀 쓰러졌습니다...`, `💀 You have fallen...`, 'info');
+      return;
+    }
+
     if (newS.enemyCurrentHp <= 0) {
       set({ phase: 'result' });
       const dEnemy = s.enemy;
@@ -377,6 +393,11 @@ export const useBattleStore = create<BattleStore>((set, get) => ({
     recipe.resultEffect.forEach(e => get().applyEffect(e, 'player'));
     get().checkCombos();
   },
+
+  healPlayer: (amount) => set(s => {
+    if (!s.player) return s;
+    return { player: { ...s.player, hp: Math.min(s.player.hp + amount, s.player.maxHp) } };
+  }),
 
   getAvailableCombo: () => {
     const { availableCombo, availableCombos } = get();

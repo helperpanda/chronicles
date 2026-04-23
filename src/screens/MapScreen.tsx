@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useGameStore, type RoomNode } from '../store/gameStore';
 import { useBattleStore } from '../store/battleStore';
+import { useLegacyStore } from '../store/legacyStore';
 import { chapter1, chapter1Monsters, chapter1Combos, chapter2, chapter2Monsters, chapter2Combos } from '../data';
 import type { SkillCard } from '../data/_schema';
 import { useT, useContent } from '../i18n';
@@ -93,9 +94,11 @@ const ROOM_ICONS: Record<string, string> = {
 };
 
 export default function MapScreen() {
-  const { character, run, setScreen, enterRoom, advanceFloor, useItem, triggerBeat, dismissBeat, pendingBeat } = useGameStore();
+  const { character, run, setScreen, enterRoom, advanceFloor, useItem, triggerBeat, dismissBeat, pendingBeat, endRun } = useGameStore();
   const { initBattle } = useBattleStore();
+  const { getBonus } = useLegacyStore();
   const [showDeck, setShowDeck] = useState(false);
+  const [showAbandon, setShowAbandon] = useState(false);
   const t = useT();
   const tc = useContent();
 
@@ -142,6 +145,8 @@ export default function MapScreen() {
         return m.tier === 'normal';
       });
       const enemy = pool[Math.floor(Math.random() * pool.length)];
+      const legacyManaBonus = getBonus('mana');
+      const legacyCardBonus = getBonus('startCards');
       initBattle(
         {
           hp: character.hp,
@@ -157,7 +162,8 @@ export default function MapScreen() {
         enemy,
         character.deck,
         combos,
-        relicManaBonus,
+        relicManaBonus + legacyManaBonus,
+        3 + legacyCardBonus,
       );
       setScreen('battle');
     } else if (room.type === 'rest') {
@@ -177,6 +183,24 @@ export default function MapScreen() {
 
   return (
     <div style={styles.container}>
+      {/* Abandon confirmation overlay */}
+      {showAbandon && (
+        <div style={styles.abandonOverlay}>
+          <div style={styles.abandonBox}>
+            <p style={styles.abandonTitle}>런을 포기하시겠습니까?</p>
+            <p style={styles.abandonSub}>모든 진행 상황이 사라집니다.</p>
+            <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center' }}>
+              <button style={styles.abandonConfirm} onClick={() => endRun(false)}>
+                포기
+              </button>
+              <button style={styles.abandonCancel} onClick={() => setShowAbandon(false)}>
+                계속하기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Story Beat Overlay */}
       {pendingBeat && (
         <div style={styles.beatOverlay} onClick={dismissBeat}>
@@ -211,9 +235,14 @@ export default function MapScreen() {
         <div style={styles.hudRight}>
           <span style={styles.gold}>💰 {character.gold}</span>
           <span style={styles.floor}>Chapter {run.chapter} · {t('map.floor', { n: run.floor })}</span>
-          <button style={styles.deckBtn} onClick={() => setShowDeck(true)}>
-            {t('map.deck', { n: character.deck.length })}
-          </button>
+          <div style={{ display: 'flex', gap: '0.4rem' }}>
+            <button style={styles.deckBtn} onClick={() => setShowDeck(true)}>
+              {t('map.deck', { n: character.deck.length })}
+            </button>
+            <button style={styles.abandonBtn} onClick={() => setShowAbandon(true)}>
+              🏳️
+            </button>
+          </div>
         </div>
       </div>
       {showDeck && <DeckModal deck={character.deck} onClose={() => setShowDeck(false)} />}
@@ -395,6 +424,41 @@ const styles: Record<string, React.CSSProperties> = {
     border: '1px solid rgba(255,255,255,0.25)', color: 'var(--text-secondary)',
     cursor: 'pointer', borderRadius: '4px',
     fontFamily: 'var(--font-body)', fontSize: '0.72rem',
+  },
+  abandonBtn: {
+    marginTop: '0.3rem', padding: '0.25rem 0.5rem', background: 'transparent',
+    border: '1px solid rgba(231,76,60,0.35)', color: 'rgba(231,76,60,0.6)',
+    cursor: 'pointer', borderRadius: '4px', fontSize: '0.75rem',
+  },
+  abandonOverlay: {
+    position: 'fixed' as const, inset: 0, background: 'rgba(0,0,0,0.75)',
+    display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 400,
+  },
+  abandonBox: {
+    background: 'var(--bg-secondary, #1a1a2e)',
+    border: '1px solid rgba(231,76,60,0.4)',
+    borderRadius: '10px', padding: '2rem', maxWidth: '320px', width: '90%',
+    display: 'flex', flexDirection: 'column' as const, gap: '0.75rem', alignItems: 'center' as const,
+    textAlign: 'center' as const,
+  },
+  abandonTitle: {
+    fontFamily: 'var(--font-title)', fontSize: '1.1rem',
+    color: 'var(--text-primary)', margin: 0,
+  },
+  abandonSub: {
+    fontFamily: 'var(--font-body)', fontSize: '0.8rem',
+    color: 'var(--text-secondary)', margin: 0,
+  },
+  abandonConfirm: {
+    padding: '0.55rem 1.5rem', background: '#e74c3c', border: 'none',
+    borderRadius: '4px', color: '#fff', cursor: 'pointer',
+    fontFamily: 'var(--font-body)', fontSize: '0.9rem', fontWeight: 'bold',
+  },
+  abandonCancel: {
+    padding: '0.55rem 1.5rem', background: 'rgba(255,255,255,0.08)',
+    border: '1px solid rgba(255,255,255,0.2)', borderRadius: '4px',
+    color: 'var(--text-primary)', cursor: 'pointer',
+    fontFamily: 'var(--font-body)', fontSize: '0.9rem',
   },
   inventoryPanel: {
     marginTop: '1.5rem', width: '100%', maxWidth: '700px',

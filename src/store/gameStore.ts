@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type { CharacterState, SkillCard, Item, GameClass } from '../data/_schema';
 import { chapter1Classes, chapter1SkillCards, chapter1HiddenClasses, chapter2Classes, chapter2SkillCards, chapter2HiddenClasses } from '../data';
+import { useLegacyStore } from './legacyStore';
 
 // ─── localStorage helpers ─────────────────────────────────────────────────────
 
@@ -38,7 +39,8 @@ export type Screen =
   | 'rest'
   | 'chapter_clear'
   | 'game_over'
-  | 'victory';
+  | 'victory'
+  | 'legacy';
 
 export type RoomType = 'combat' | 'elite' | 'event' | 'shop' | 'rest' | 'boss';
 
@@ -69,7 +71,29 @@ export interface RunStats {
   deckSize: number;
   victory: boolean;
   chapterCompleted: number;
+  shardsEarned: number;
 }
+
+// Legacy bonuses applied at run start
+export interface LegacyBonuses {
+  hp: number;
+  gold: number;
+  str: number;
+  int: number;
+  dex: number;
+  startPotion: boolean;
+}
+
+// Starter potion granted by legacy upgrade
+const STARTER_POTION: Item = {
+  id: 'legacy_starter_potion',
+  name: '여행자의 포션',
+  type: 'potion',
+  description: '체력 30 회복. 유산의 은총으로 지급된 포션.',
+  effects: [{ type: 'heal', value: 30 }],
+  chapter: 1,
+  price: 0,
+};
 
 // ─── Store Interface ──────────────────────────────────────────────────────────
 
@@ -80,27 +104,22 @@ interface GameStore {
   availableClasses: GameClass[];
   lastRunStats: RunStats | null;
 
-  // Persistent unlock state (mirrored from localStorage)
   unlockedHiddenClasses: string[];
   completedClasses: string[];
 
-  // Run counters (reset on startRun)
   runKills: number;
   runCombos: number;
   runTurns: number;
   runDamageTaken: number;
 
-  // Story beat system
   pendingBeat: string | null;
   shownBeats: string[];
   triggerBeat: (key: string, text: string) => void;
   dismissBeat: () => void;
 
-  // Navigation
   setScreen: (screen: Screen) => void;
 
-  // Run management
-  startRun: (classId: string, name: string) => void;
+  startRun: (classId: string, name: string, legacyBonuses?: LegacyBonuses) => void;
   endRun: (victory: boolean) => void;
   advanceChapter: () => void;
   incrementKills: () => void;
@@ -108,11 +127,11 @@ interface GameStore {
   addTurns: (n: number) => void;
   addDamageTaken: (n: number) => void;
 
-  // Character mutations
   gainExp: (amount: number) => void;
   gainGold: (amount: number) => void;
   spendGold: (amount: number) => boolean;
   healHp: (amount: number) => void;
+  syncHp: (hp: number) => void;
   takeDamage: (amount: number) => void;
   restoremp: (amount: number) => void;
   addCardToDeck: (card: SkillCard) => void;
@@ -121,7 +140,6 @@ interface GameStore {
   addRelic: (relic: Item) => void;
   useItem: (itemId: string) => void;
 
-  // Room progression
   enterRoom: (roomId: string) => void;
   clearRoom: () => void;
   advanceFloor: () => void;
@@ -139,7 +157,7 @@ function buildStartingDeck(classId: string): SkillCard[] {
   return cls.startingDeck.map(id => ALL_SKILL_CARDS.find(c => c.id === id)!);
 }
 
-function buildCharacter(cls: GameClass, name: string): CharacterState {
+function buildCharacter(cls: GameClass, name: string, bonuses: LegacyBonuses): CharacterState {
   const { hp, mp, str, int: int_, dex, con } = cls.baseStats;
   return {
     classId: cls.id,
@@ -147,17 +165,17 @@ function buildCharacter(cls: GameClass, name: string): CharacterState {
     level: 1,
     exp: 0,
     expToNext: EXP_PER_LEVEL(1),
-    hp,
-    maxHp: hp,
+    hp: hp + bonuses.hp,
+    maxHp: hp + bonuses.hp,
     mp,
     maxMp: mp,
-    str,
-    int: int_,
-    dex,
+    str: str + bonuses.str,
+    int: int_ + bonuses.int,
+    dex: dex + bonuses.dex,
     con,
-    gold: 100,
+    gold: 100 + bonuses.gold,
     deck: buildStartingDeck(cls.id),
-    inventory: [],
+    inventory: bonuses.startPotion ? [STARTER_POTION] : [],
     relics: [],
     unlockedCombos: [],
     careerStats: {},
@@ -187,6 +205,10 @@ function generateRooms(floor: number): RoomNode[] {
   return rooms;
 }
 
+function calcShards(kills: number, combos: number, floorsCleared: number, victory: boolean): number {
+  return Math.floor(floorsCleared * 3 + kills * 1 + combos * 2 + (victory ? 30 : 0));
+}
+
 // ─── Store ────────────────────────────────────────────────────────────────────
 
 const _savedRun = loadRunSave();
@@ -198,7 +220,8 @@ export const useGameStore = create<GameStore>((set, get) => {
   };
 
   return {
-    screen: _savedRun ? 'map' : 'title',
+    // Always start on title so the player can choose continue vs new game
+    screen: 'title',
     character: _savedRun?.character ?? null,
     run: _savedRun?.run ?? null,
     availableClasses: ALL_CLASSES,
@@ -221,10 +244,12 @@ export const useGameStore = create<GameStore>((set, get) => {
     },
     dismissBeat: () => set({ pendingBeat: null }),
 
-    startRun: (classId, name) => {
+    startRun: (classId, name, legacyBonuses) => {
       clearRunSave();
-      const cls = ALL_CLASSES.find(c => c.id === classId)!;
-      const character = buildCharacter(cls, name);
+      const bonuses: LegacyBonuses = legacyBonuses ?? { hp: 0, gold: 0, str: 0, int: 0, dex: 0, startPotion: false };
+      const cls = ALL_CLASSES.find(c => c.id === classId);
+      if (!cls) return;
+      const character = buildCharacter(cls, name, bonuses);
       const run: RunState = { chapter: 1, floor: 1, roomIndex: 0, rooms: generateRooms(1), currentRoomId: null };
       set({
         character, run, screen: 'map',
@@ -237,6 +262,11 @@ export const useGameStore = create<GameStore>((set, get) => {
     endRun: (victory) => {
       const { character, run, runKills, runCombos, runTurns, runDamageTaken,
               unlockedHiddenClasses, completedClasses } = get();
+
+      const floorsCleared = run ? run.floor - 1 : 0;
+      const shards = calcShards(runKills, runCombos, floorsCleared, victory);
+      useLegacyStore.getState().addShards(shards);
+
       const stats: RunStats | null = character ? {
         characterName: character.name,
         classId: character.classId,
@@ -244,14 +274,14 @@ export const useGameStore = create<GameStore>((set, get) => {
         kills: runKills,
         combos: runCombos,
         turns: runTurns,
-        floorsCleared: run ? run.floor - 1 : 0,
+        floorsCleared,
         gold: character.gold,
         deckSize: character.deck.length,
         victory,
         chapterCompleted: run?.chapter ?? 1,
+        shardsEarned: shards,
       } : null;
 
-      // Check hidden class unlocks
       const newUnlocked = [...unlockedHiddenClasses];
       if (character) {
         const c = character.classId;
@@ -263,14 +293,11 @@ export const useGameStore = create<GameStore>((set, get) => {
           newUnlocked.push('phantom');
         if (c === 'priest' && runKills >= 8 && !newUnlocked.includes('inquisitor'))
           newUnlocked.push('inquisitor');
-
-        // Chapter 2 hidden unlocks
         if (c === 'druid' && runCombos >= 4 && !newUnlocked.includes('storm_caller'))
           newUnlocked.push('storm_caller');
         if (c === 'marshal' && runKills >= 10 && !newUnlocked.includes('holy_avenger'))
           newUnlocked.push('holy_avenger');
 
-        // Multiclass unlocks (only on victory)
         if (victory) {
           const newCompleted = [...completedClasses, c];
           const hasWarrior = newCompleted.includes('warrior');
@@ -352,6 +379,16 @@ export const useGameStore = create<GameStore>((set, get) => {
         if (!s.character) return s;
         const hp = Math.min(s.character.hp + amount, s.character.maxHp);
         return { character: { ...s.character, hp } };
+      });
+      persist();
+    },
+
+    // Sets HP to an exact value (used to sync battle result back to character)
+    syncHp: (hp) => {
+      set(s => {
+        if (!s.character) return s;
+        const clamped = Math.max(1, Math.min(hp, s.character.maxHp));
+        return { character: { ...s.character, hp: clamped } };
       });
       persist();
     },

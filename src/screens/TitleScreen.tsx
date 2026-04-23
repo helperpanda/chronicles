@@ -1,9 +1,11 @@
 import { useGameStore } from '../store/gameStore';
+import { useLegacyStore } from '../store/legacyStore';
 import { useT } from '../i18n';
 
 export default function TitleScreen() {
   const setScreen = useGameStore(s => s.setScreen);
   const savedRun = useGameStore(s => s.run);
+  const shards = useLegacyStore(s => s.shards);
   const t = useT();
 
   return (
@@ -19,6 +21,12 @@ export default function TitleScreen() {
         )}
         <button style={styles.btn} onClick={() => setScreen('class_select')}>
           {t('title.start')}
+        </button>
+        <button
+          style={{ ...styles.btn, marginTop: '0.5rem', fontSize: '0.85rem', opacity: 0.8 }}
+          onClick={() => setScreen('legacy')}
+        >
+          ◆ 유산 강화 {shards > 0 ? `(${shards})` : ''}
         </button>
       </div>
     </div>

@@ -41,23 +41,25 @@ function DamagePopups({ popups }: { popups: FloatPopup[] }) {
   );
 }
 
-function CardView({ card, onClick, disabled, playing }: {
+function CardView({ card, onClick, disabled, playing, comboGlow }: {
   card: SkillCard;
   onClick: () => void;
   disabled: boolean;
   playing: boolean;
+  comboGlow?: boolean;
 }) {
   const rarity = RARITY_COLOR[card.rarity] ?? '#aaa';
   const tc = useContent();
+  const glowClass = playing ? 'anim-card-play' : comboGlow ? 'anim-card-combo-glow' : undefined;
   return (
     <button
-      className={playing ? 'anim-card-play' : undefined}
+      className={glowClass}
       style={{
         ...styles.card,
-        borderColor: disabled ? '#333' : rarity,
+        borderColor: comboGlow ? '#f39c12' : disabled ? '#333' : rarity,
         opacity: disabled ? 0.45 : 1,
         cursor: disabled ? 'default' : 'pointer',
-        boxShadow: disabled ? 'none' : `0 0 8px ${rarity}44`,
+        boxShadow: comboGlow ? '0 0 10px #f39c1266' : disabled ? 'none' : `0 0 8px ${rarity}44`,
       }}
       onClick={disabled ? undefined : onClick}
     >
@@ -104,17 +106,22 @@ export default function BattleScreen() {
   const [enemyPopups, setEnemyPopups] = useState<FloatPopup[]>([]);
   const [playerPopups, setPlayerPopups] = useState<FloatPopup[]>([]);
   const [playerShaking, setPlayerShaking] = useState(false);
+  const [comboFlash, setComboFlash] = useState(false);
+  const [comboReadyKey, setComboReadyKey] = useState(0);
+  const [showAbandon, setShowAbandon] = useState(false);
   const popupCounter = useRef(0);
   const prevLogLen = useRef(0);
+  const prevAvailableCombo = useRef<string | null>(null);
 
   const t = useT();
   const tc = useContent();
 
-  const { character, run, clearRoom, setScreen, takeDamage, healHp, gainExp, gainGold, incrementKills, incrementCombos, addTurns, addDamageTaken, useItem, triggerBeat, addItemToInventory, addRelic } = useGameStore();
+  const { character, run, clearRoom, setScreen, takeDamage, gainExp, gainGold, incrementKills, incrementCombos, addTurns, addDamageTaken, useItem, triggerBeat, addItemToInventory, addRelic, endRun, syncHp } = useGameStore();
   const {
     phase, turn, hand, enemy, enemyCurrentHp, enemyShield,
     player, currentMana, maxMana, log, playCard, endPlayerTurn, resetBattle,
     executeCombo, getAvailableCombo, playerDamageTaken,
+    playedThisTurn, availableCombos, healPlayer,
   } = useBattleStore();
 
   // Spawn float popups from new log entries
@@ -156,6 +163,48 @@ export default function BattleScreen() {
 
   const availableCombo = getAvailableCombo();
 
+  // Detect when combo first becomes available → trigger animation
+  useEffect(() => {
+    const cur = availableCombo?.id ?? null;
+    if (cur && cur !== prevAvailableCombo.current) {
+      setComboReadyKey(k => k + 1);
+    }
+    prevAvailableCombo.current = cur;
+  }, [availableCombo]);
+
+  // Auto-resolve defeat when phase=result and player dead
+  useEffect(() => {
+    if (phase === 'result' && player && player.hp <= 0 && enemyCurrentHp > 0) {
+      const timer = setTimeout(() => {
+        handleDefeat();
+      }, 1800);
+      return () => clearTimeout(timer);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase, player?.hp, enemyCurrentHp]);
+
+  // Compute which tags are still needed for any combo (to highlight cards)
+  const neededTags = new Set<string>();
+  if (phase === 'player_turn') {
+    availableCombos.forEach(recipe => {
+      recipe.requiredTags.forEach(tagGroup => {
+        const alreadyMet = playedThisTurn.some(c => c.comboTag?.some(t => tagGroup.includes(t)));
+        if (!alreadyMet) tagGroup.forEach(t => neededTags.add(t));
+      });
+    });
+  }
+
+  // Partial combo progress (matched > 0 but no full combo yet)
+  const comboProgressList = !availableCombo
+    ? availableCombos.map(recipe => ({
+        recipe,
+        matched: recipe.requiredTags.filter(tagGroup =>
+          playedThisTurn.some(c => c.comboTag?.some(t => tagGroup.includes(t)))
+        ).length,
+        total: recipe.requiredTags.length,
+      })).filter(p => p.matched > 0)
+    : [];
+
   if (!character || !enemy || !player) return null;
 
   const hpPct = (player.hp / player.maxHp) * 100;
@@ -178,9 +227,9 @@ export default function BattleScreen() {
   const handleVictory = () => {
     const [minG, maxG] = enemy.goldReward;
     const gold = Math.floor(Math.random() * (maxG - minG + 1)) + minG;
+    syncHp(player.hp);
     gainExp(enemy.expReward);
     gainGold(gold);
-    healHp(player.hp - character.hp);
 
     // Process drops
     const allItems = [...chapter1Items, ...chapter2Items];
@@ -213,6 +262,17 @@ export default function BattleScreen() {
 
   return (
     <div style={styles.container}>
+      {/* Combo screen flash */}
+      {comboFlash && (
+        <div
+          className="anim-combo-flash"
+          style={{
+            position: 'fixed', inset: 0, background: 'radial-gradient(ellipse at center, #f39c1288 0%, #f39c1222 60%, transparent 100%)',
+            pointerEvents: 'none', zIndex: 200,
+          }}
+        />
+      )}
+
       {/* Enemy */}
       <DamagePopups popups={enemyPopups} />
       <div style={styles.enemyArea}>
@@ -303,7 +363,12 @@ export default function BattleScreen() {
         <PotionPanel
           items={character.inventory}
           disabled={phase !== 'player_turn'}
-          onUse={(id) => { useItem(id); setShowPotions(false); }}
+          onUse={(id) => {
+            const item = character.inventory.find(i => i.id === id);
+            useItem(id);
+            item?.effects.forEach(e => { if (e.type === 'heal') healPlayer(e.value); });
+            setShowPotions(false);
+          }}
         />
       )}
 
@@ -322,6 +387,9 @@ export default function BattleScreen() {
             <>
               <h2 style={{ color: '#e74c3c', fontFamily: 'var(--font-title)' }}>{t('battle.defeat')}</h2>
               <p style={{ color: 'var(--text-secondary)' }}>{t('battle.defeated')}</p>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', fontStyle: 'italic' }}>
+                잠시 후 기록 화면으로 이동합니다...
+              </p>
               <button style={{ ...styles.resultBtn, background: '#e74c3c' }} onClick={handleDefeat}>
                 {t('battle.record')}
               </button>
@@ -330,24 +398,51 @@ export default function BattleScreen() {
         </div>
       )}
 
+      {/* Combo progress tracker (partial progress before combo ready) */}
+      {phase === 'player_turn' && !availableCombo && comboProgressList.length > 0 && (
+        <div style={styles.comboTracker}>
+          {comboProgressList.map(({ recipe, matched, total }) => (
+            <div key={recipe.id} style={styles.comboTrackerRow}>
+              <span style={styles.comboTrackerName}>{tc.combo(recipe.id, 'name', recipe.name)}</span>
+              <div style={styles.comboTrackerDots}>
+                {Array.from({ length: total }).map((_, i) => (
+                  <div key={i} style={{
+                    ...styles.comboTrackerDot,
+                    background: i < matched ? '#f39c12' : 'rgba(255,255,255,0.12)',
+                    boxShadow: i < matched ? '0 0 6px #f39c12' : 'none',
+                  }} />
+                ))}
+              </div>
+              <span style={styles.comboTrackerFrac}>{matched}/{total}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Hand */}
       <div style={styles.hand}>
-        {hand.map((card, i) => (
-          <CardView
-            key={`${card.id}-${i}`}
-            card={card}
-            disabled={phase !== 'player_turn' || currentMana < card.manaCost}
-            playing={playingCardId === card.id}
-            onClick={() => handlePlayCard(card)}
-          />
-        ))}
+        {hand.map((card, i) => {
+          const isComboContrib = phase === 'player_turn' && !availableCombo
+            && card.comboTag?.some(t => neededTags.has(t));
+          return (
+            <CardView
+              key={`${card.id}-${i}`}
+              card={card}
+              disabled={phase !== 'player_turn' || currentMana < card.manaCost}
+              playing={playingCardId === card.id}
+              comboGlow={!!isComboContrib}
+              onClick={() => handlePlayCard(card)}
+            />
+          );
+        })}
       </div>
 
-      {/* Combo button */}
+      {/* Combo button — shows when combo is ready */}
       {phase === 'player_turn' && availableCombo && (
-        <div style={styles.comboArea}>
-          <div style={styles.comboHint}>{t('battle.comboReady')}</div>
+        <div key={comboReadyKey} className="anim-combo-ready" style={styles.comboArea}>
+          <div style={styles.comboHint}>⚡ {t('battle.comboReady')} ⚡</div>
           <button
+            className={currentMana >= availableCombo.manaCost ? 'anim-combo-btn-pulse' : undefined}
             style={{
               ...styles.comboBtn,
               opacity: currentMana >= availableCombo.manaCost ? 1 : 0.4,
@@ -357,6 +452,8 @@ export default function BattleScreen() {
               if (currentMana >= availableCombo.manaCost) {
                 executeCombo(availableCombo.id);
                 incrementCombos();
+                setComboFlash(true);
+                setTimeout(() => setComboFlash(false), 550);
               }
             }}
           >
@@ -367,11 +464,41 @@ export default function BattleScreen() {
         </div>
       )}
 
-      {/* End turn button */}
+      {/* End turn + Abandon row */}
       {phase === 'player_turn' && (
-        <button style={styles.endTurnBtn} onClick={handleEndTurn}>
-          {t('battle.endTurn')}
-        </button>
+        <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'center' }}>
+          <button style={styles.endTurnBtn} onClick={handleEndTurn}>
+            {t('battle.endTurn')}
+          </button>
+          <button style={styles.abandonBtn} onClick={() => setShowAbandon(true)}>
+            🏳️ 포기
+          </button>
+        </div>
+      )}
+
+      {/* Abandon confirmation overlay */}
+      {showAbandon && (
+        <div style={styles.abandonOverlay}>
+          <div style={styles.abandonBox}>
+            <p style={styles.abandonTitle}>런을 포기하시겠습니까?</p>
+            <p style={styles.abandonSub}>모든 진행 상황이 사라집니다.</p>
+            <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center' }}>
+              <button
+                style={{ ...styles.abandonConfirm }}
+                onClick={() => {
+                  addDamageTaken(playerDamageTaken);
+                  resetBattle();
+                  endRun(false);
+                }}
+              >
+                포기
+              </button>
+              <button style={styles.abandonCancel} onClick={() => setShowAbandon(false)}>
+                계속하기
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
@@ -464,6 +591,27 @@ const styles: Record<string, React.CSSProperties> = {
     fontFamily: 'var(--font-body)', fontSize: '0.66rem',
     color: 'var(--text-secondary)', lineHeight: 1.4, margin: 0,
   },
+  comboTracker: {
+    width: '100%', maxWidth: '500px',
+    background: 'rgba(243,156,18,0.06)', border: '1px solid rgba(243,156,18,0.2)',
+    borderRadius: '8px', padding: '0.5rem 0.75rem',
+    display: 'flex', flexDirection: 'column', gap: '0.3rem',
+  },
+  comboTrackerRow: {
+    display: 'flex', alignItems: 'center', gap: '0.5rem',
+  },
+  comboTrackerName: {
+    fontFamily: 'var(--font-body)', fontSize: '0.68rem',
+    color: '#f39c12', flex: 1, whiteSpace: 'nowrap' as const, overflow: 'hidden', textOverflow: 'ellipsis',
+  },
+  comboTrackerDots: { display: 'flex', gap: '4px', alignItems: 'center' },
+  comboTrackerDot: {
+    width: '8px', height: '8px', borderRadius: '50%', transition: 'all 0.2s',
+  },
+  comboTrackerFrac: {
+    fontFamily: 'var(--font-body)', fontSize: '0.65rem',
+    color: 'var(--text-secondary)', minWidth: '20px', textAlign: 'right' as const,
+  },
   comboArea: {
     width: '100%', maxWidth: '500px',
     background: 'rgba(243,156,18,0.12)', border: '1px solid #f39c12',
@@ -472,7 +620,8 @@ const styles: Record<string, React.CSSProperties> = {
   },
   comboHint: {
     fontFamily: 'var(--font-body)', fontSize: '0.7rem',
-    color: '#f39c12', letterSpacing: '0.05em', textTransform: 'uppercase',
+    color: '#f39c12', letterSpacing: '0.08em', textTransform: 'uppercase' as const,
+    fontWeight: 'bold',
   },
   comboBtn: {
     display: 'flex', alignItems: 'center', gap: '0.75rem',
@@ -494,6 +643,43 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '0.6rem 2rem', fontFamily: 'var(--font-body)',
     fontSize: '0.9rem', background: '#27ae60', border: 'none',
     color: '#fff', cursor: 'pointer', borderRadius: '4px', fontWeight: 'bold',
+  },
+  abandonBtn: {
+    padding: '0.6rem 1rem', fontFamily: 'var(--font-body)',
+    fontSize: '0.8rem', background: 'transparent',
+    border: '1px solid rgba(231,76,60,0.4)', color: 'rgba(231,76,60,0.7)',
+    cursor: 'pointer', borderRadius: '4px',
+    transition: 'all 0.15s',
+  },
+  abandonOverlay: {
+    position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)',
+    display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 300,
+  },
+  abandonBox: {
+    background: 'var(--bg-secondary, #1a1a2e)',
+    border: '1px solid rgba(231,76,60,0.4)',
+    borderRadius: '10px', padding: '2rem', maxWidth: '320px', width: '90%',
+    display: 'flex', flexDirection: 'column', gap: '0.75rem', alignItems: 'center',
+    textAlign: 'center' as const,
+  },
+  abandonTitle: {
+    fontFamily: 'var(--font-title)', fontSize: '1.1rem',
+    color: 'var(--text-primary)', margin: 0,
+  },
+  abandonSub: {
+    fontFamily: 'var(--font-body)', fontSize: '0.8rem',
+    color: 'var(--text-secondary)', margin: 0,
+  },
+  abandonConfirm: {
+    padding: '0.55rem 1.5rem', background: '#e74c3c', border: 'none',
+    borderRadius: '4px', color: '#fff', cursor: 'pointer',
+    fontFamily: 'var(--font-body)', fontSize: '0.9rem', fontWeight: 'bold',
+  },
+  abandonCancel: {
+    padding: '0.55rem 1.5rem', background: 'rgba(255,255,255,0.08)',
+    border: '1px solid rgba(255,255,255,0.2)', borderRadius: '4px',
+    color: 'var(--text-primary)', cursor: 'pointer',
+    fontFamily: 'var(--font-body)', fontSize: '0.9rem',
   },
   resultOverlay: {
     position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)',
