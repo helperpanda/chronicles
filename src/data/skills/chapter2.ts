@@ -245,4 +245,118 @@ const marshalCards: SkillCard[] = [
   },
 ];
 
-export const chapter2SkillCards: SkillCard[] = [...druidCards, ...marshalCards];
+// ─── Storm Caller 전용 카드 (3장) ────────────────────────────────────────────
+
+const stormCallerCards: SkillCard[] = [
+  {
+    id: 'stm_c2_lightning_surge',
+    name: '번개 폭발',
+    class: 'storm_caller',
+    chapter: 2,
+    manaCost: 2,
+    type: 'attack',
+    element: 'lightning',
+    rarity: 'rare',
+    description: '번개 에너지를 폭발적으로 방출해 강한 번개 마법 데미지를 입히고 마나 1을 회복한다.',
+    effects: [
+      { type: 'magic_damage', value: 38, target: 'enemy', element: 'lightning' },
+      { type: 'mana', value: 1, target: 'self' },
+    ],
+    comboTag: ['storm_caller', 'lightning', 'magic', 'surge'],
+  },
+  {
+    id: 'stm_c2_storm_vortex',
+    name: '폭풍 소용돌이',
+    class: 'storm_caller',
+    chapter: 2,
+    manaCost: 2,
+    type: 'special',
+    element: 'nature',
+    rarity: 'rare',
+    description: '번개와 자연이 뒤섞인 폭풍 소용돌이를 일으켜 마법 데미지, 독, 민첩 약화를 동시에 부여한다.',
+    effects: [
+      { type: 'magic_damage', value: 24, target: 'enemy', element: 'nature' },
+      { type: 'debuff', value: 5, duration: 2, target: 'enemy', stat: 'poison' },
+      { type: 'debuff', value: -3, duration: 2, target: 'enemy', stat: 'dex' },
+    ],
+    comboTag: ['storm_caller', 'lightning', 'nature', 'poison', 'cloud', 'vortex'],
+  },
+  {
+    id: 'stm_c2_tempest_wrath',
+    name: '폭풍의 진노',
+    class: 'storm_caller',
+    chapter: 2,
+    manaCost: 5,
+    type: 'special',
+    element: 'lightning',
+    rarity: 'epic',
+    description: '하늘의 분노를 불러내 강렬한 번개+자연 복합 데미지를 입히고 방어막을 형성한다.',
+    effects: [
+      { type: 'magic_damage', value: 55, target: 'enemy', element: 'lightning' },
+      { type: 'magic_damage', value: 25, target: 'enemy', element: 'nature' },
+      { type: 'shield', value: 15, target: 'self' },
+    ],
+    comboTag: ['storm_caller', 'lightning', 'nature', 'epic', 'tempest'],
+  },
+];
+
+// ─── Holy Avenger 전용 카드 (3장) ────────────────────────────────────────────
+
+const holyAvengerCards: SkillCard[] = [
+  {
+    id: 'hav_c2_divine_retribution',
+    name: '신성한 응보',
+    class: 'holy_avenger',
+    chapter: 2,
+    manaCost: 2,
+    type: 'attack',
+    element: 'holy',
+    rarity: 'rare',
+    description: '신의 이름으로 응보를 내려 물리+신성 복합 데미지를 입힌다. 적의 버프를 1개 해제한다.',
+    effects: [
+      { type: 'damage', value: 20, target: 'enemy' },
+      { type: 'magic_damage', value: 22, target: 'enemy', element: 'holy' },
+      { type: 'special', value: 0, target: 'enemy' },
+    ],
+    comboTag: ['holy_avenger', 'holy', 'strike', 'physical', 'retribution'],
+  },
+  {
+    id: 'hav_c2_crusaders_oath',
+    name: '성전사의 맹세',
+    class: 'holy_avenger',
+    chapter: 2,
+    manaCost: 2,
+    type: 'buff',
+    element: 'holy',
+    rarity: 'rare',
+    description: '성전사의 맹세를 선언해 STR을 크게 강화하고 신성 에너지로 적에게 데미지를 입힌다.',
+    effects: [
+      { type: 'buff', value: 5, duration: 3, target: 'self', stat: 'str' },
+      { type: 'magic_damage', value: 15, target: 'enemy', element: 'holy' },
+    ],
+    comboTag: ['holy_avenger', 'holy', 'buff', 'war_cry', 'crusade', 'oath'],
+  },
+  {
+    id: 'hav_c2_wrath_of_god',
+    name: '신의 진노',
+    class: 'holy_avenger',
+    chapter: 2,
+    manaCost: 5,
+    type: 'special',
+    element: 'holy',
+    rarity: 'epic',
+    description: '신의 진노를 해방하여 압도적인 신성 데미지를 입히고 강력한 방어막을 생성한다.',
+    effects: [
+      { type: 'magic_damage', value: 68, target: 'enemy', element: 'holy' },
+      { type: 'shield', value: 28, target: 'self' },
+    ],
+    comboTag: ['holy_avenger', 'holy', 'epic', 'crusade', 'wrath'],
+  },
+];
+
+export const chapter2SkillCards: SkillCard[] = [
+  ...druidCards,
+  ...marshalCards,
+  ...stormCallerCards,
+  ...holyAvengerCards,
+];

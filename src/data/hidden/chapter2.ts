@@ -31,9 +31,9 @@ export const chapter2HiddenClasses: GameClass[] = [
     hidden: true,
     baseStats: { hp: 75, mp: 95, str: 8, int: 24, dex: 14, con: 8 },
     startingDeck: [
+      'stm_c2_lightning_surge',
       'dru_c2_nature_wrath',
       'dru_c2_thorn_strike',
-      'dru_c2_spore_cloud',
       'dru_c2_entangle',
     ],
     passives: ['nature_bond', 'spell_echo', 'void_resonance'],
@@ -48,10 +48,10 @@ export const chapter2HiddenClasses: GameClass[] = [
     hidden: true,
     baseStats: { hp: 110, mp: 55, str: 18, int: 14, dex: 10, con: 16 },
     startingDeck: [
+      'hav_c2_divine_retribution',
       'msl_c2_heavy_blow',
       'msl_c2_crusade',
       'msl_c2_shield_wall',
-      'msl_c2_command',
     ],
     passives: ['iron_discipline', 'divine_wrath', 'holy_aura'],
   },

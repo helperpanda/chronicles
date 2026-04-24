@@ -16,6 +16,15 @@ export { chapter2 } from './chapters/chapter2';
 export { chapter2Combos } from './combos/chapter2';
 export { chapter2Events } from './events/chapter2';
 
+export { chapter3Classes } from './classes/chapter3';
+export { chapter3HiddenClasses, chapter3HiddenConditions, chapter3HiddenHints } from './hidden/chapter3';
+export { chapter3SkillCards } from './skills/chapter3';
+export { chapter3Monsters } from './monsters/chapter3';
+export { chapter3Items } from './items/chapter3';
+export { chapter3 } from './chapters/chapter3';
+export { chapter3Combos } from './combos/chapter3';
+export { chapter3Events } from './events/chapter3';
+
 export type {
   GameClass,
   SkillCard,

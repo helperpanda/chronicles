@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import type { CharacterState, SkillCard, Item, GameClass } from '../data/_schema';
-import { chapter1Classes, chapter1SkillCards, chapter1HiddenClasses, chapter2Classes, chapter2SkillCards, chapter2HiddenClasses } from '../data';
+import { chapter1Classes, chapter1SkillCards, chapter1HiddenClasses, chapter2Classes, chapter2SkillCards, chapter2HiddenClasses, chapter3Classes, chapter3SkillCards, chapter3HiddenClasses } from '../data';
 import { useLegacyStore } from './legacyStore';
 
 // ─── localStorage helpers ─────────────────────────────────────────────────────
@@ -161,8 +161,8 @@ interface GameStore {
 
 const EXP_PER_LEVEL = (level: number) => Math.floor(50 * Math.pow(level, 1.8));
 
-const ALL_CLASSES = [...chapter1Classes, ...chapter2Classes, ...chapter1HiddenClasses, ...chapter2HiddenClasses];
-const ALL_SKILL_CARDS = [...chapter1SkillCards, ...chapter2SkillCards];
+const ALL_CLASSES = [...chapter1Classes, ...chapter2Classes, ...chapter3Classes, ...chapter1HiddenClasses, ...chapter2HiddenClasses, ...chapter3HiddenClasses];
+const ALL_SKILL_CARDS = [...chapter1SkillCards, ...chapter2SkillCards, ...chapter3SkillCards];
 
 function buildStartingDeck(classId: string): SkillCard[] {
   const cls = ALL_CLASSES.find(c => c.id === classId)!;
@@ -319,6 +319,10 @@ export const useGameStore = create<GameStore>((set, get) => {
           newUnlocked.push('storm_caller');
         if (c === 'marshal' && runKills >= 10 && !newUnlocked.includes('holy_avenger'))
           newUnlocked.push('holy_avenger');
+        if (c === 'dragon_knight' && runBossKills >= 2 && !newUnlocked.includes('flame_vanguard'))
+          newUnlocked.push('flame_vanguard');
+        if (c === 'alchemist' && runCombos >= 4 && !newUnlocked.includes('poison_alchemist'))
+          newUnlocked.push('poison_alchemist');
 
         if (victory) {
           const newCompleted = [...completedClasses, c];
@@ -330,6 +334,9 @@ export const useGameStore = create<GameStore>((set, get) => {
             newUnlocked.push('rune_knight');
           if (hasRogue && hasPriest && !newUnlocked.includes('shadow_inquisitor'))
             newUnlocked.push('shadow_inquisitor');
+          // 전설의 영웅: 챕터 1+2+3 모두 클리어 (runChaptersCleared = 3 means all 3 chapters done)
+          if (runChaptersCleared >= 3 && !newUnlocked.includes('legendary_hero'))
+            newUnlocked.push('legendary_hero');
           saveLS('completed_classes', newCompleted);
           set({ completedClasses: newCompleted });
         }
@@ -348,7 +355,7 @@ export const useGameStore = create<GameStore>((set, get) => {
       const { run } = get();
       if (!run) return;
       set(s => ({ runChaptersCleared: s.runChaptersCleared + 1 }));
-      if (run.chapter < 2) {
+      if (run.chapter < 3) {
         const rooms = generateRooms(1);
         const newRun: RunState = { ...run, chapter: run.chapter + 1, floor: 1, roomIndex: 0, rooms, currentRoomId: null };
         set({ run: newRun, screen: 'chapter_clear' });
