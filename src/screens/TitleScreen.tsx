@@ -1,12 +1,61 @@
+import { useState } from 'react';
 import { useGameStore } from '../store/gameStore';
 import { useLegacyStore } from '../store/legacyStore';
+import { NOTICES } from '../data/notice';
 import { useT } from '../i18n';
+
+function NoticeModal({ onClose }: { onClose: () => void }) {
+  const latest = NOTICES[NOTICES.length - 1];
+  return (
+    <div style={modal.overlay} onClick={onClose}>
+      <div style={modal.box} onClick={e => e.stopPropagation()}>
+        <p style={modal.date}>{latest.date}</p>
+        <h2 style={modal.title}>{latest.title}</h2>
+        <p style={modal.content}>{latest.content}</p>
+        <button style={modal.close} onClick={onClose}>닫기</button>
+      </div>
+    </div>
+  );
+}
+
+const modal: Record<string, React.CSSProperties> = {
+  overlay: {
+    position: 'fixed', inset: 0, zIndex: 1000,
+    background: 'rgba(0,0,0,0.7)', display: 'flex',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  box: {
+    background: 'var(--bg-secondary, #1a1a2e)',
+    border: '1px solid rgba(212,175,55,0.4)',
+    borderRadius: '10px', padding: '2rem', maxWidth: '360px', width: '90%',
+    display: 'flex', flexDirection: 'column', gap: '0.75rem',
+  },
+  date: {
+    fontFamily: 'var(--font-body)', fontSize: '0.72rem',
+    color: 'var(--text-secondary)', margin: 0,
+  },
+  title: {
+    fontFamily: 'var(--font-title)', fontSize: '1.1rem',
+    color: 'var(--text-gold)', margin: 0,
+  },
+  content: {
+    fontFamily: 'var(--font-body)', fontSize: '0.88rem',
+    color: 'var(--text-primary)', lineHeight: 1.6, margin: 0,
+  },
+  close: {
+    alignSelf: 'flex-end', padding: '0.4rem 1.2rem',
+    background: 'transparent', border: '1px solid rgba(255,255,255,0.25)',
+    color: 'var(--text-secondary)', cursor: 'pointer',
+    fontFamily: 'var(--font-body)', fontSize: '0.85rem', borderRadius: '4px',
+  },
+};
 
 export default function TitleScreen() {
   const setScreen = useGameStore(s => s.setScreen);
   const savedRun = useGameStore(s => s.run);
   const shards = useLegacyStore(s => s.shards);
   const t = useT();
+  const [showNotice, setShowNotice] = useState(false);
 
   return (
     <div style={styles.container}>
@@ -28,7 +77,14 @@ export default function TitleScreen() {
         >
           ◆ 유산 강화 {shards > 0 ? `(${shards})` : ''}
         </button>
+        <button
+          style={{ ...styles.btn, marginTop: '0.25rem', fontSize: '0.8rem', opacity: 0.65 }}
+          onClick={() => setShowNotice(true)}
+        >
+          📢 공지
+        </button>
       </div>
+      {showNotice && <NoticeModal onClose={() => setShowNotice(false)} />}
     </div>
   );
 }

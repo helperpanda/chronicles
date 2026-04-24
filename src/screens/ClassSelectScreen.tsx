@@ -76,11 +76,10 @@ export default function ClassSelectScreen() {
     const charName = name.trim() || selected.name;
     startRun(selected.id, charName, {
       hp: getBonus('hp'),
+      mp: getBonus('mp'),
       gold: getBonus('gold'),
-      str: getBonus('str'),
-      int: getBonus('int'),
-      dex: getBonus('dex'),
-      startPotion: getBonus('startPotion') > 0,
+      rareCard: getBonus('rareCard') > 0,
+      revive: getBonus('revive') > 0,
     });
   };
 

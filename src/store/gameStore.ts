@@ -71,28 +71,35 @@ export interface RunStats {
   deckSize: number;
   victory: boolean;
   chapterCompleted: number;
+  bossKills: number;
+  chaptersCleared: number;
   shardsEarned: number;
 }
 
 // Legacy bonuses applied at run start
 export interface LegacyBonuses {
   hp: number;
+  mp: number;
   gold: number;
-  str: number;
-  int: number;
-  dex: number;
-  startPotion: boolean;
+  rareCard: boolean;
+  revive: boolean;
 }
 
-// Starter potion granted by legacy upgrade
-const STARTER_POTION: Item = {
-  id: 'legacy_starter_potion',
-  name: '여행자의 포션',
-  type: 'potion',
-  description: '체력 30 회복. 유산의 은총으로 지급된 포션.',
-  effects: [{ type: 'heal', value: 30 }],
+// Rare card granted by 날카로운 본능 legacy upgrade
+const LEGACY_INSTINCT_CARD: SkillCard = {
+  id: 'legacy_sharp_instinct',
+  name: '날카로운 직관',
+  class: 'any',
   chapter: 1,
-  price: 0,
+  manaCost: 1,
+  type: 'special',
+  rarity: 'rare',
+  description: '유산의 본능. 카드 2장을 드로우하고 이번 턴 공격력 +10.',
+  effects: [
+    { type: 'draw', value: 2, target: 'self' },
+    { type: 'buff', value: 10, duration: 1, target: 'self', stat: 'str' },
+  ],
+  comboTag: ['draw', 'special'],
 };
 
 // ─── Store Interface ──────────────────────────────────────────────────────────
@@ -111,6 +118,9 @@ interface GameStore {
   runCombos: number;
   runTurns: number;
   runDamageTaken: number;
+  runBossKills: number;
+  runChaptersCleared: number;
+  runReviveAvailable: boolean;
 
   pendingBeat: string | null;
   shownBeats: string[];
@@ -124,8 +134,10 @@ interface GameStore {
   advanceChapter: () => void;
   incrementKills: () => void;
   incrementCombos: () => void;
+  incrementBossKills: () => void;
   addTurns: (n: number) => void;
   addDamageTaken: (n: number) => void;
+  useRevive: () => void;
 
   gainExp: (amount: number) => void;
   gainGold: (amount: number) => void;
@@ -159,6 +171,8 @@ function buildStartingDeck(classId: string): SkillCard[] {
 
 function buildCharacter(cls: GameClass, name: string, bonuses: LegacyBonuses): CharacterState {
   const { hp, mp, str, int: int_, dex, con } = cls.baseStats;
+  const deck = buildStartingDeck(cls.id);
+  if (bonuses.rareCard) deck.push(LEGACY_INSTINCT_CARD);
   return {
     classId: cls.id,
     name,
@@ -167,15 +181,15 @@ function buildCharacter(cls: GameClass, name: string, bonuses: LegacyBonuses): C
     expToNext: EXP_PER_LEVEL(1),
     hp: hp + bonuses.hp,
     maxHp: hp + bonuses.hp,
-    mp,
-    maxMp: mp,
-    str: str + bonuses.str,
-    int: int_ + bonuses.int,
-    dex: dex + bonuses.dex,
+    mp: mp + bonuses.mp,
+    maxMp: mp + bonuses.mp,
+    str,
+    int: int_,
+    dex,
     con,
     gold: 100 + bonuses.gold,
-    deck: buildStartingDeck(cls.id),
-    inventory: bonuses.startPotion ? [STARTER_POTION] : [],
+    deck,
+    inventory: [],
     relics: [],
     unlockedCombos: [],
     careerStats: {},
@@ -205,8 +219,8 @@ function generateRooms(floor: number): RoomNode[] {
   return rooms;
 }
 
-function calcShards(kills: number, combos: number, floorsCleared: number, victory: boolean): number {
-  return Math.floor(floorsCleared * 3 + kills * 1 + combos * 2 + (victory ? 30 : 0));
+function calcPoints(victory: boolean, bossKills: number, chaptersCleared: number): number {
+  return (victory ? 0 : 10) + bossKills * 20 + chaptersCleared * 50;
 }
 
 // ─── Store ────────────────────────────────────────────────────────────────────
@@ -232,6 +246,9 @@ export const useGameStore = create<GameStore>((set, get) => {
     runCombos: 0,
     runTurns: 0,
     runDamageTaken: 0,
+    runBossKills: 0,
+    runChaptersCleared: 0,
+    runReviveAvailable: false,
     pendingBeat: null,
     shownBeats: [],
 
@@ -246,7 +263,7 @@ export const useGameStore = create<GameStore>((set, get) => {
 
     startRun: (classId, name, legacyBonuses) => {
       clearRunSave();
-      const bonuses: LegacyBonuses = legacyBonuses ?? { hp: 0, gold: 0, str: 0, int: 0, dex: 0, startPotion: false };
+      const bonuses: LegacyBonuses = legacyBonuses ?? { hp: 0, mp: 0, gold: 0, rareCard: false, revive: false };
       const cls = ALL_CLASSES.find(c => c.id === classId);
       if (!cls) return;
       const character = buildCharacter(cls, name, bonuses);
@@ -254,6 +271,8 @@ export const useGameStore = create<GameStore>((set, get) => {
       set({
         character, run, screen: 'map',
         runKills: 0, runCombos: 0, runTurns: 0, runDamageTaken: 0,
+        runBossKills: 0, runChaptersCleared: 0,
+        runReviveAvailable: bonuses.revive,
         pendingBeat: null, shownBeats: [],
       });
       saveRun(character, run);
@@ -261,12 +280,13 @@ export const useGameStore = create<GameStore>((set, get) => {
 
     endRun: (victory) => {
       const { character, run, runKills, runCombos, runTurns, runDamageTaken,
+              runBossKills, runChaptersCleared,
               unlockedHiddenClasses, completedClasses } = get();
 
-      const floorsCleared = run ? run.floor - 1 : 0;
-      const shards = calcShards(runKills, runCombos, floorsCleared, victory);
-      useLegacyStore.getState().addShards(shards);
+      const points = calcPoints(victory, runBossKills, runChaptersCleared);
+      useLegacyStore.getState().addShards(points);
 
+      const floorsCleared = run ? run.floor - 1 : 0;
       const stats: RunStats | null = character ? {
         characterName: character.name,
         classId: character.classId,
@@ -279,7 +299,9 @@ export const useGameStore = create<GameStore>((set, get) => {
         deckSize: character.deck.length,
         victory,
         chapterCompleted: run?.chapter ?? 1,
-        shardsEarned: shards,
+        bossKills: runBossKills,
+        chaptersCleared: runChaptersCleared,
+        shardsEarned: points,
       } : null;
 
       const newUnlocked = [...unlockedHiddenClasses];
@@ -325,6 +347,7 @@ export const useGameStore = create<GameStore>((set, get) => {
     advanceChapter: () => {
       const { run } = get();
       if (!run) return;
+      set(s => ({ runChaptersCleared: s.runChaptersCleared + 1 }));
       if (run.chapter < 2) {
         const rooms = generateRooms(1);
         const newRun: RunState = { ...run, chapter: run.chapter + 1, floor: 1, roomIndex: 0, rooms, currentRoomId: null };
@@ -337,8 +360,18 @@ export const useGameStore = create<GameStore>((set, get) => {
 
     incrementKills: () => set(s => ({ runKills: s.runKills + 1 })),
     incrementCombos: () => set(s => ({ runCombos: s.runCombos + 1 })),
+    incrementBossKills: () => set(s => ({ runBossKills: s.runBossKills + 1 })),
     addTurns: (n) => set(s => ({ runTurns: s.runTurns + n })),
     addDamageTaken: (n) => set(s => ({ runDamageTaken: s.runDamageTaken + n })),
+
+    useRevive: () => {
+      set(s => {
+        if (!s.character || !s.runReviveAvailable) return s;
+        const hp = Math.max(1, Math.floor(s.character.maxHp * 0.3));
+        return { character: { ...s.character, hp }, runReviveAvailable: false };
+      });
+      persist();
+    },
 
     gainExp: (amount) => {
       set(s => {

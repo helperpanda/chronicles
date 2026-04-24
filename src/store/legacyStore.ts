@@ -11,14 +11,11 @@ export interface LegacyUpgradeDef {
 }
 
 export const LEGACY_UPGRADES: LegacyUpgradeDef[] = [
-  { id: 'legacy_hp',     name: '강인한 육체',   description: '시작 최대 HP +10',      maxLevel: 5, costs: [5, 8, 12, 18, 25], stat: 'hp',          valuePerLevel: 10 },
-  { id: 'legacy_gold',   name: '황금의 손길',   description: '시작 골드 +20',         maxLevel: 4, costs: [5, 8, 12, 18],     stat: 'gold',        valuePerLevel: 20 },
-  { id: 'legacy_str',    name: '근력 수련',     description: '시작 STR +1',           maxLevel: 3, costs: [8, 14, 22],        stat: 'str',         valuePerLevel: 1  },
-  { id: 'legacy_int',    name: '마법 연구',     description: '시작 INT +1',           maxLevel: 3, costs: [8, 14, 22],        stat: 'int',         valuePerLevel: 1  },
-  { id: 'legacy_dex',    name: '민첩 훈련',     description: '시작 DEX +1',           maxLevel: 3, costs: [8, 14, 22],        stat: 'dex',         valuePerLevel: 1  },
-  { id: 'legacy_mana',   name: '마나 확장',     description: '전투 시작 마나 +1',     maxLevel: 2, costs: [20, 35],           stat: 'mana',        valuePerLevel: 1  },
-  { id: 'legacy_card',   name: '카드 통찰',     description: '첫 손패 +1장',          maxLevel: 1, costs: [30],              stat: 'startCards',  valuePerLevel: 1  },
-  { id: 'legacy_potion', name: '여행자의 준비', description: '런 시작 시 포션 1개',   maxLevel: 1, costs: [20],              stat: 'startPotion', valuePerLevel: 1  },
+  { id: 'legacy_hp',     name: '강인한 육체',   description: '시작 HP +20',              maxLevel: 1, costs: [30], stat: 'hp',       valuePerLevel: 20 },
+  { id: 'legacy_mp',     name: '마법 친화',     description: '시작 MP +20',              maxLevel: 1, costs: [30], stat: 'mp',       valuePerLevel: 20 },
+  { id: 'legacy_gold',   name: '행운의 주머니', description: '시작 골드 +50',            maxLevel: 1, costs: [20], stat: 'gold',     valuePerLevel: 50 },
+  { id: 'legacy_card',   name: '날카로운 본능', description: '시작 덱에 희귀 카드 1장',  maxLevel: 1, costs: [40], stat: 'rareCard', valuePerLevel: 1  },
+  { id: 'legacy_revive', name: '불사의 의지',   description: '런당 부활 1회',            maxLevel: 1, costs: [50], stat: 'revive',   valuePerLevel: 1  },
 ];
 
 interface LegacyState {
