@@ -2,8 +2,11 @@ import type { GameClass, HiddenClass } from '../_schema';
 
 export const chapter3HiddenHints: Record<string, string> = {
   flame_vanguard:    '용기사로 한 런에 보스 2회 이상 처치',
-  poison_alchemist:  '연금술사로 한 런에 콤보 4회 이상 발동',
-  legendary_hero:    '챕터 1·2·3을 모두 클리어한 자에게만 해금',
+  poison_alchemist:  '커리어 누적 독 피해 3000 달성',
+  legendary_hero:    '챕터 3 클리어 3회 달성',
+  void_wanderer:     '커리어 누적 사망 15회 달성',
+  archmage:          '커리어 누적 콤보 30회 달성',
+  dragon_heir:       '용 계열 몬스터 50킬 달성',
 };
 
 export const chapter3HiddenConditions: HiddenClass[] = [
@@ -16,14 +19,32 @@ export const chapter3HiddenConditions: HiddenClass[] = [
   {
     id: 'poison_alchemist',
     name: '독 연금사',
-    condition: { type: 'combos', threshold: 4, scope: 'run' },
+    condition: { type: 'career_poison_damage', threshold: 3000, scope: 'career' },
     hint: chapter3HiddenHints.poison_alchemist,
   },
   {
     id: 'legendary_hero',
     name: '전설의 영웅',
-    condition: { type: 'three_chapters', scope: 'career' },
+    condition: { type: 'career_chapter3_clears', threshold: 3, scope: 'career' },
     hint: chapter3HiddenHints.legendary_hero,
+  },
+  {
+    id: 'void_wanderer',
+    name: '공허의 방랑자',
+    condition: { type: 'career_deaths', threshold: 15, scope: 'career' },
+    hint: chapter3HiddenHints.void_wanderer,
+  },
+  {
+    id: 'archmage',
+    name: '대마법사',
+    condition: { type: 'career_combos', threshold: 30, scope: 'career' },
+    hint: chapter3HiddenHints.archmage,
+  },
+  {
+    id: 'dragon_heir',
+    name: '용의 계승자',
+    condition: { type: 'career_dragon_kills', threshold: 50, scope: 'career' },
+    hint: chapter3HiddenHints.dragon_heir,
   },
 ];
 
@@ -78,5 +99,56 @@ export const chapter3HiddenClasses: GameClass[] = [
       'alc_c3_stimulant',
     ],
     passives: ['dragon_blood', 'nature_bond', 'spell_echo'],
+  },
+  {
+    id: 'void_wanderer',
+    name: '공허의 방랑자',
+    subtitle: 'Void Wanderer',
+    description:
+      '수많은 죽음을 거쳐 공허의 경계를 걷는 자. 죽음을 두려워하지 않으며, 그로부터 힘을 얻어 어떤 상황에도 적응한다.',
+    chapter: 3,
+    hidden: true,
+    baseStats: { hp: 90, mp: 80, str: 12, int: 18, dex: 18, con: 10 },
+    startingDeck: [
+      'rog_c1_evade',
+      'rog_c1_shadow_step',
+      'mag_c1_arcane_surge',
+      'mag_c1_frost_bolt',
+    ],
+    passives: ['shadow_veil', 'void_resonance'],
+  },
+  {
+    id: 'archmage',
+    name: '대마법사',
+    subtitle: 'Archmage',
+    description:
+      '수십 번의 콤보 마법을 통해 정점에 오른 마법사. 마나 효율과 콤보 연계 능력이 극한에 달했으며 어떤 원소도 완벽히 제어한다.',
+    chapter: 3,
+    hidden: true,
+    baseStats: { hp: 65, mp: 120, str: 5, int: 30, dex: 10, con: 6 },
+    startingDeck: [
+      'mag_c1_chain_lightning',
+      'mag_c1_arcane_surge',
+      'mag_c1_meteor',
+      'mag_c1_fireball',
+    ],
+    passives: ['spell_echo', 'void_resonance', 'divine_grace'],
+  },
+  {
+    id: 'dragon_heir',
+    name: '용의 계승자',
+    subtitle: 'Dragon Heir',
+    description:
+      '50마리의 용을 쓰러뜨리며 그 힘과 피를 흡수한 전사. 강철 같은 몸과 용의 불꽃으로 전장을 지배하는 진정한 용의 후계자.',
+    chapter: 3,
+    hidden: true,
+    baseStats: { hp: 125, mp: 55, str: 25, int: 12, dex: 10, con: 20 },
+    startingDeck: [
+      'drk_c3_flame_slash',
+      'drk_c3_dragon_scale',
+      'drk_c3_ancient_roar',
+      'drk_c3_berserker_rush',
+    ],
+    passives: ['dragon_blood', 'iron_body', 'flame_aura'],
   },
 ];

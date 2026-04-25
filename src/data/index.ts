@@ -25,6 +25,9 @@ export { chapter3 } from './chapters/chapter3';
 export { chapter3Combos } from './combos/chapter3';
 export { chapter3Events } from './events/chapter3';
 
+export { CRAFTED_ITEMS, CRAFTING_RECIPES, CRAFT_MATERIAL_IDS, matchRecipe } from './crafting';
+export type { CraftingRecipe } from './crafting';
+
 export type {
   GameClass,
   SkillCard,

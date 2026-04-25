@@ -27,6 +27,33 @@ function clearRunSave() {
   localStorage.removeItem('chronicles_run_save');
 }
 
+// ─── Career Stats ─────────────────────────────────────────────────────────────
+
+export interface CareerData {
+  totalRuns: number;
+  chapterClears: Record<number, number>;
+  totalKills: number;
+  totalDeaths: number;
+  totalCombos: number;
+  totalPoisonDamage: number;
+  dragonKills: number;
+}
+
+function loadCareer(): CareerData {
+  try {
+    const raw = localStorage.getItem('chronicles_career');
+    if (!raw) return { totalRuns: 0, chapterClears: {}, totalKills: 0, totalDeaths: 0, totalCombos: 0, totalPoisonDamage: 0, dragonKills: 0 };
+    return JSON.parse(raw) as CareerData;
+  } catch {
+    return { totalRuns: 0, chapterClears: {}, totalKills: 0, totalDeaths: 0, totalCombos: 0, totalPoisonDamage: 0, dragonKills: 0 };
+  }
+}
+function saveCareer(c: CareerData) {
+  localStorage.setItem('chronicles_career', JSON.stringify(c));
+}
+
+const DRAGON_MONSTER_IDS = new Set(['wyvern_scout', 'dragon_guard', 'ancient_dragon']);
+
 // ─── Run State ────────────────────────────────────────────────────────────────
 
 export type Screen =
@@ -57,6 +84,8 @@ export interface RunState {
   roomIndex: number;
   rooms: RoomNode[];
   currentRoomId: string | null;
+  extraCardChoice: number;
+  pendingCardChoice: boolean;
 }
 
 export interface RunStats {
@@ -76,16 +105,17 @@ export interface RunStats {
   shardsEarned: number;
 }
 
-// Legacy bonuses applied at run start
 export interface LegacyBonuses {
   hp: number;
   mp: number;
   gold: number;
   rareCard: boolean;
   revive: boolean;
+  startComboCard: boolean;
+  extraCardChoice: number;
 }
 
-// Rare card granted by 날카로운 본능 legacy upgrade
+// Epic card granted by 날카로운 본능 legacy upgrade
 const LEGACY_INSTINCT_CARD: SkillCard = {
   id: 'legacy_sharp_instinct',
   name: '날카로운 직관',
@@ -93,11 +123,11 @@ const LEGACY_INSTINCT_CARD: SkillCard = {
   chapter: 1,
   manaCost: 1,
   type: 'special',
-  rarity: 'rare',
-  description: '유산의 본능. 카드 2장을 드로우하고 이번 턴 공격력 +10.',
+  rarity: 'epic',
+  description: '유산의 에픽 본능. 카드 3장을 드로우하고 이번 턴 STR +15.',
   effects: [
-    { type: 'draw', value: 2, target: 'self' },
-    { type: 'buff', value: 10, duration: 1, target: 'self', stat: 'str' },
+    { type: 'draw', value: 3, target: 'self' },
+    { type: 'buff', value: 15, duration: 1, target: 'self', stat: 'str' },
   ],
   comboTag: ['draw', 'special'],
 };
@@ -113,6 +143,8 @@ interface GameStore {
 
   unlockedHiddenClasses: string[];
   completedClasses: string[];
+  pendingAwakenings: string[];
+  careerData: CareerData;
 
   runKills: number;
   runCombos: number;
@@ -121,6 +153,8 @@ interface GameStore {
   runBossKills: number;
   runChaptersCleared: number;
   runReviveAvailable: boolean;
+  runPoisonDamage: number;
+  runDragonKills: number;
 
   pendingBeat: string | null;
   shownBeats: string[];
@@ -137,7 +171,11 @@ interface GameStore {
   incrementBossKills: () => void;
   addTurns: (n: number) => void;
   addDamageTaken: (n: number) => void;
+  addPoisonDamage: (n: number) => void;
+  incrementDragonKills: () => void;
   useRevive: () => void;
+  clearPendingAwakenings: () => void;
+  dismissCardChoice: () => void;
 
   gainExp: (amount: number) => void;
   gainGold: (amount: number) => void;
@@ -149,6 +187,7 @@ interface GameStore {
   addCardToDeck: (card: SkillCard) => void;
   removeCardFromDeck: (cardId: string) => void;
   addItemToInventory: (item: Item) => void;
+  removeInventoryItems: (indices: number[]) => void;
   addRelic: (relic: Item) => void;
   useItem: (itemId: string) => void;
 
@@ -169,10 +208,17 @@ function buildStartingDeck(classId: string): SkillCard[] {
   return cls.startingDeck.map(id => ALL_SKILL_CARDS.find(c => c.id === id)!);
 }
 
+function getRandomComboCard(): SkillCard {
+  const comboCards = ALL_SKILL_CARDS.filter(c => c.comboTag && c.comboTag.length > 0 && c.chapter === 1);
+  if (comboCards.length === 0) return LEGACY_INSTINCT_CARD;
+  return comboCards[Math.floor(Math.random() * comboCards.length)];
+}
+
 function buildCharacter(cls: GameClass, name: string, bonuses: LegacyBonuses): CharacterState {
   const { hp, mp, str, int: int_, dex, con } = cls.baseStats;
   const deck = buildStartingDeck(cls.id);
-  if (bonuses.rareCard) deck.push(LEGACY_INSTINCT_CARD);
+  if (bonuses.rareCard) deck.push({ ...LEGACY_INSTINCT_CARD });
+  if (bonuses.startComboCard) deck.push(getRandomComboCard());
   return {
     classId: cls.id,
     name,
@@ -234,7 +280,6 @@ export const useGameStore = create<GameStore>((set, get) => {
   };
 
   return {
-    // Always start on title so the player can choose continue vs new game
     screen: 'title',
     character: _savedRun?.character ?? null,
     run: _savedRun?.run ?? null,
@@ -242,6 +287,8 @@ export const useGameStore = create<GameStore>((set, get) => {
     lastRunStats: null,
     unlockedHiddenClasses: loadLS('unlocked_hidden_classes', []),
     completedClasses: loadLS('completed_classes', []),
+    pendingAwakenings: loadLS('chronicles_pending_awakenings', []),
+    careerData: loadCareer(),
     runKills: 0,
     runCombos: 0,
     runTurns: 0,
@@ -249,6 +296,8 @@ export const useGameStore = create<GameStore>((set, get) => {
     runBossKills: 0,
     runChaptersCleared: 0,
     runReviveAvailable: false,
+    runPoisonDamage: 0,
+    runDragonKills: 0,
     pendingBeat: null,
     shownBeats: [],
 
@@ -261,17 +310,34 @@ export const useGameStore = create<GameStore>((set, get) => {
     },
     dismissBeat: () => set({ pendingBeat: null }),
 
+    clearPendingAwakenings: () => {
+      saveLS('chronicles_pending_awakenings', []);
+      set({ pendingAwakenings: [] });
+    },
+
+    dismissCardChoice: () => {
+      set(s => {
+        if (!s.run) return s;
+        return { run: { ...s.run, pendingCardChoice: false } };
+      });
+      persist();
+    },
+
     startRun: (classId, name, legacyBonuses) => {
       clearRunSave();
-      const bonuses: LegacyBonuses = legacyBonuses ?? { hp: 0, mp: 0, gold: 0, rareCard: false, revive: false };
+      const bonuses: LegacyBonuses = legacyBonuses ?? { hp: 0, mp: 0, gold: 0, rareCard: false, revive: false, startComboCard: false, extraCardChoice: 0 };
       const cls = ALL_CLASSES.find(c => c.id === classId);
       if (!cls) return;
       const character = buildCharacter(cls, name, bonuses);
-      const run: RunState = { chapter: 1, floor: 1, roomIndex: 0, rooms: generateRooms(1), currentRoomId: null };
+      const run: RunState = {
+        chapter: 1, floor: 1, roomIndex: 0, rooms: generateRooms(1), currentRoomId: null,
+        extraCardChoice: bonuses.extraCardChoice,
+        pendingCardChoice: false,
+      };
       set({
         character, run, screen: 'map',
         runKills: 0, runCombos: 0, runTurns: 0, runDamageTaken: 0,
-        runBossKills: 0, runChaptersCleared: 0,
+        runBossKills: 0, runChaptersCleared: 0, runPoisonDamage: 0, runDragonKills: 0,
         runReviveAvailable: bonuses.revive,
         pendingBeat: null, shownBeats: [],
       });
@@ -279,9 +345,11 @@ export const useGameStore = create<GameStore>((set, get) => {
     },
 
     endRun: (victory) => {
-      const { character, run, runKills, runCombos, runTurns, runDamageTaken,
-              runBossKills, runChaptersCleared,
-              unlockedHiddenClasses, completedClasses } = get();
+      const {
+        character, run, runKills, runCombos, runTurns, runDamageTaken,
+        runBossKills, runChaptersCleared, runPoisonDamage, runDragonKills,
+        unlockedHiddenClasses, completedClasses, careerData,
+      } = get();
 
       const points = calcPoints(victory, runBossKills, runChaptersCleared);
       useLegacyStore.getState().addShards(points);
@@ -304,6 +372,22 @@ export const useGameStore = create<GameStore>((set, get) => {
         shardsEarned: points,
       } : null;
 
+      // ─── Update career stats ───────────────────────────────────────────────
+      const newCareer: CareerData = {
+        totalRuns: careerData.totalRuns + 1,
+        chapterClears: { ...careerData.chapterClears },
+        totalKills: careerData.totalKills + runKills,
+        totalDeaths: careerData.totalDeaths + (victory ? 0 : 1),
+        totalCombos: careerData.totalCombos + runCombos,
+        totalPoisonDamage: careerData.totalPoisonDamage + runPoisonDamage,
+        dragonKills: careerData.dragonKills + runDragonKills,
+      };
+      if (victory && runChaptersCleared >= 3) {
+        newCareer.chapterClears[3] = (newCareer.chapterClears[3] ?? 0) + 1;
+      }
+      saveCareer(newCareer);
+
+      // ─── Per-run hidden class unlocks (existing logic) ─────────────────────
       const newUnlocked = [...unlockedHiddenClasses];
       if (character) {
         const c = character.classId;
@@ -321,8 +405,6 @@ export const useGameStore = create<GameStore>((set, get) => {
           newUnlocked.push('holy_avenger');
         if (c === 'dragon_knight' && runBossKills >= 2 && !newUnlocked.includes('flame_vanguard'))
           newUnlocked.push('flame_vanguard');
-        if (c === 'alchemist' && runCombos >= 4 && !newUnlocked.includes('poison_alchemist'))
-          newUnlocked.push('poison_alchemist');
 
         if (victory) {
           const newCompleted = [...completedClasses, c];
@@ -334,21 +416,42 @@ export const useGameStore = create<GameStore>((set, get) => {
             newUnlocked.push('rune_knight');
           if (hasRogue && hasPriest && !newUnlocked.includes('shadow_inquisitor'))
             newUnlocked.push('shadow_inquisitor');
-          // 전설의 영웅: 챕터 1+2+3 모두 클리어 (runChaptersCleared = 3 means all 3 chapters done)
-          if (runChaptersCleared >= 3 && !newUnlocked.includes('legendary_hero'))
-            newUnlocked.push('legendary_hero');
           saveLS('completed_classes', newCompleted);
           set({ completedClasses: newCompleted });
         }
       }
+
+      // ─── Career-based hidden class unlocks ────────────────────────────────
+      const newAwakenings: string[] = [];
+      const checkCareer = (id: string, cond: boolean) => {
+        if (cond && !newUnlocked.includes(id)) {
+          newUnlocked.push(id);
+          newAwakenings.push(id);
+        }
+      };
+      checkCareer('legendary_hero',   (newCareer.chapterClears[3] ?? 0) >= 3);
+      checkCareer('poison_alchemist',  newCareer.totalPoisonDamage >= 3000);
+      checkCareer('void_wanderer',     newCareer.totalDeaths >= 15);
+      checkCareer('archmage',          newCareer.totalCombos >= 30);
+      checkCareer('dragon_heir',       newCareer.dragonKills >= 50);
 
       if (newUnlocked.length !== unlockedHiddenClasses.length) {
         saveLS('unlocked_hidden_classes', newUnlocked);
         set({ unlockedHiddenClasses: newUnlocked });
       }
 
+      const allPending = [...loadLS('chronicles_pending_awakenings', []), ...newAwakenings];
+      if (newAwakenings.length > 0) {
+        saveLS('chronicles_pending_awakenings', allPending);
+        set({ pendingAwakenings: allPending });
+      }
+
       clearRunSave();
-      set({ screen: victory ? 'victory' : 'game_over', character: null, run: null, lastRunStats: stats });
+      set({
+        screen: victory ? 'victory' : 'game_over',
+        character: null, run: null, lastRunStats: stats,
+        careerData: newCareer,
+      });
     },
 
     advanceChapter: () => {
@@ -357,7 +460,15 @@ export const useGameStore = create<GameStore>((set, get) => {
       set(s => ({ runChaptersCleared: s.runChaptersCleared + 1 }));
       if (run.chapter < 3) {
         const rooms = generateRooms(1);
-        const newRun: RunState = { ...run, chapter: run.chapter + 1, floor: 1, roomIndex: 0, rooms, currentRoomId: null };
+        const newRun: RunState = {
+          ...run,
+          chapter: run.chapter + 1,
+          floor: 1,
+          roomIndex: 0,
+          rooms,
+          currentRoomId: null,
+          pendingCardChoice: run.extraCardChoice > 0,
+        };
         set({ run: newRun, screen: 'chapter_clear' });
         persist();
       } else {
@@ -370,11 +481,13 @@ export const useGameStore = create<GameStore>((set, get) => {
     incrementBossKills: () => set(s => ({ runBossKills: s.runBossKills + 1 })),
     addTurns: (n) => set(s => ({ runTurns: s.runTurns + n })),
     addDamageTaken: (n) => set(s => ({ runDamageTaken: s.runDamageTaken + n })),
+    addPoisonDamage: (n) => set(s => ({ runPoisonDamage: s.runPoisonDamage + n })),
+    incrementDragonKills: () => set(s => ({ runDragonKills: s.runDragonKills + 1 })),
 
     useRevive: () => {
       set(s => {
         if (!s.character || !s.runReviveAvailable) return s;
-        const hp = Math.max(1, Math.floor(s.character.maxHp * 0.3));
+        const hp = Math.max(1, Math.floor(s.character.maxHp * 0.4));
         return { character: { ...s.character, hp }, runReviveAvailable: false };
       });
       persist();
@@ -423,7 +536,6 @@ export const useGameStore = create<GameStore>((set, get) => {
       persist();
     },
 
-    // Sets HP to an exact value (used to sync battle result back to character)
     syncHp: (hp) => {
       set(s => {
         if (!s.character) return s;
@@ -473,6 +585,17 @@ export const useGameStore = create<GameStore>((set, get) => {
       set(s => {
         if (!s.character) return s;
         return { character: { ...s.character, inventory: [...s.character.inventory, item] } };
+      });
+      persist();
+    },
+
+    removeInventoryItems: (indices: number[]) => {
+      set(s => {
+        if (!s.character) return s;
+        const sorted = [...indices].sort((a, b) => b - a);
+        const inventory = [...s.character.inventory];
+        sorted.forEach(i => inventory.splice(i, 1));
+        return { character: { ...s.character, inventory } };
       });
       persist();
     },
@@ -544,3 +667,5 @@ export const useGameStore = create<GameStore>((set, get) => {
     },
   };
 });
+
+export { DRAGON_MONSTER_IDS };

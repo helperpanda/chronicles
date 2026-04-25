@@ -2,8 +2,8 @@ import { useState, useEffect } from 'react';
 import { useGameStore, type RoomNode } from '../store/gameStore';
 import { useBattleStore } from '../store/battleStore';
 import { useLegacyStore } from '../store/legacyStore';
-import { chapter1, chapter1Monsters, chapter1Combos, chapter2, chapter2Monsters, chapter2Combos } from '../data';
-import type { SkillCard } from '../data/_schema';
+import { chapter1, chapter1Monsters, chapter1Combos, chapter2, chapter2Monsters, chapter2Combos, chapter3, chapter3Monsters, chapter3Combos, CRAFTED_ITEMS, CRAFT_MATERIAL_IDS, matchRecipe } from '../data';
+import type { SkillCard, Item } from '../data/_schema';
 import { useT, useContent } from '../i18n';
 
 const RARITY_COLOR: Record<string, string> = {
@@ -93,20 +93,218 @@ const ROOM_ICONS: Record<string, string> = {
   boss:    '👹',
 };
 
+// ─── Craft Modal ──────────────────────────────────────────────────────────────
+
+interface SelectedMaterial { item: Item; idx: number; }
+
+function CraftModal({ inventory, onClose, onCraft }: {
+  inventory: Item[];
+  onClose: () => void;
+  onCraft: (removeIndices: number[], result: Item) => void;
+}) {
+  const [selected, setSelected] = useState<SelectedMaterial[]>([]);
+  const [result, setResult] = useState<{ success: boolean; item?: Item } | null>(null);
+
+  const materials = inventory
+    .map((item, idx) => ({ item, idx }))
+    .filter(({ item }) => CRAFT_MATERIAL_IDS.has(item.id));
+
+  const toggleSelect = (item: Item, idx: number) => {
+    const existing = selected.findIndex(s => s.idx === idx);
+    if (existing !== -1) {
+      setSelected(prev => prev.filter((_, i) => i !== existing));
+    } else if (selected.length < 3) {
+      setSelected(prev => [...prev, { item, idx }]);
+    }
+  };
+
+  const tryCraft = () => {
+    if (selected.length < 2) return;
+    const ingredientIds = selected.map(s => s.item.id);
+    const recipe = matchRecipe(ingredientIds);
+    if (!recipe) {
+      setResult({ success: false });
+      setSelected([]);
+      return;
+    }
+    const craftedItem = CRAFTED_ITEMS.find(i => i.id === recipe.resultId)!;
+    const removeIndices = selected.map(s => s.idx);
+    onCraft(removeIndices, craftedItem);
+    setResult({ success: true, item: craftedItem });
+    setSelected([]);
+  };
+
+  // Group materials by id for display
+  const grouped: { item: Item; indices: number[] }[] = [];
+  for (const { item, idx } of materials) {
+    const g = grouped.find(g => g.item.id === item.id);
+    if (g) g.indices.push(idx);
+    else grouped.push({ item, indices: [idx] });
+  }
+
+  return (
+    <div style={craftStyles.overlay} onClick={onClose}>
+      <div style={craftStyles.panel} onClick={e => e.stopPropagation()}>
+        <div style={craftStyles.header}>
+          <span style={craftStyles.title}>⚗️ 아이템 조합</span>
+          <button style={craftStyles.closeBtn} onClick={onClose}>✕</button>
+        </div>
+
+        <p style={craftStyles.hint}>재료를 2~3개 선택 후 조합을 시도하세요. 조합식은 스스로 찾아야 합니다.</p>
+
+        {result && (
+          <div style={{
+            ...craftStyles.resultBox,
+            borderColor: result.success ? '#2ecc71' : '#e74c3c',
+            background: result.success ? 'rgba(46,204,113,0.08)' : 'rgba(231,76,60,0.08)',
+          }}>
+            {result.success
+              ? <p style={{ ...craftStyles.resultText, color: '#2ecc71' }}>✨ 조합 성공! {result.item?.name} 획득</p>
+              : <p style={{ ...craftStyles.resultText, color: '#e74c3c' }}>❌ 알 수 없는 조합 — 재료 유지</p>
+            }
+            <button style={craftStyles.resultDismiss} onClick={() => setResult(null)}>확인</button>
+          </div>
+        )}
+
+        <div style={craftStyles.grid}>
+          {grouped.length === 0 && (
+            <p style={{ color: 'var(--text-secondary)', fontFamily: 'var(--font-body)', fontSize: '0.8rem' }}>
+              조합 재료가 없습니다.
+            </p>
+          )}
+          {grouped.map(({ item, indices }) => {
+            const selectedCount = selected.filter(s => s.item.id === item.id).length;
+            const canSelect = selected.length < 3 && selectedCount < indices.length;
+            return (
+              <div
+                key={item.id}
+                style={{
+                  ...craftStyles.materialCard,
+                  borderColor: selectedCount > 0 ? '#f39c12' : 'rgba(255,255,255,0.15)',
+                  background: selectedCount > 0 ? 'rgba(243,156,18,0.1)' : 'rgba(255,255,255,0.04)',
+                  cursor: canSelect || selectedCount > 0 ? 'pointer' : 'default',
+                  opacity: !canSelect && selectedCount === 0 ? 0.5 : 1,
+                }}
+                onClick={() => {
+                  if (selectedCount > 0) {
+                    // Deselect last one of this id
+                    const lastIdx = selected.map((s, i) => ({ s, i })).reverse().find(({ s }) => s.item.id === item.id);
+                    if (lastIdx) setSelected(prev => prev.filter((_, i) => i !== lastIdx.i));
+                  } else if (canSelect) {
+                    const unusedIdx = indices.find(i => !selected.some(s => s.idx === i));
+                    if (unusedIdx !== undefined) toggleSelect(item, unusedIdx);
+                  }
+                }}
+              >
+                <p style={craftStyles.matName}>{item.name}</p>
+                <p style={craftStyles.matCount}>보유 {indices.length}개{selectedCount > 0 ? ` · 선택됨 ${selectedCount}` : ''}</p>
+              </div>
+            );
+          })}
+        </div>
+
+        <div style={craftStyles.footer}>
+          <div style={craftStyles.selectedRow}>
+            {selected.length > 0
+              ? selected.map((s, i) => <span key={i} style={craftStyles.selectedTag}>{s.item.name}</span>)
+              : <span style={{ color: 'var(--text-secondary)', fontFamily: 'var(--font-body)', fontSize: '0.75rem' }}>재료를 선택하세요 ({selected.length}/3)</span>
+            }
+          </div>
+          <button
+            style={{
+              ...craftStyles.craftBtn,
+              opacity: selected.length >= 2 ? 1 : 0.4,
+              cursor: selected.length >= 2 ? 'pointer' : 'default',
+            }}
+            onClick={tryCraft}
+            disabled={selected.length < 2}
+          >
+            ⚗️ 조합 시도
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const craftStyles: Record<string, React.CSSProperties> = {
+  overlay: {
+    position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)',
+    display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 250,
+  },
+  panel: {
+    background: 'var(--bg-secondary, #1a1a2e)', border: '1px solid rgba(255,255,255,0.15)',
+    borderRadius: '10px', width: '92%', maxWidth: '600px',
+    maxHeight: '85vh', display: 'flex', flexDirection: 'column', overflow: 'hidden',
+  },
+  header: {
+    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+    padding: '0.75rem 1rem', borderBottom: '1px solid rgba(255,255,255,0.1)',
+  },
+  title: { fontFamily: 'var(--font-title)', fontSize: '1rem', color: 'var(--text-gold)' },
+  closeBtn: { background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: '1rem' },
+  hint: {
+    fontFamily: 'var(--font-body)', fontSize: '0.72rem', color: 'var(--text-secondary)',
+    fontStyle: 'italic', margin: '0.6rem 1rem 0',
+  },
+  resultBox: {
+    margin: '0.6rem 1rem', padding: '0.6rem 1rem',
+    border: '1px solid', borderRadius: '6px',
+    display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem',
+  },
+  resultText: { fontFamily: 'var(--font-body)', fontSize: '0.82rem', margin: 0 },
+  resultDismiss: {
+    background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)',
+    color: 'var(--text-secondary)', cursor: 'pointer', borderRadius: '4px',
+    fontFamily: 'var(--font-body)', fontSize: '0.72rem', padding: '0.25rem 0.6rem',
+    whiteSpace: 'nowrap' as const,
+  },
+  grid: {
+    display: 'flex', flexWrap: 'wrap', gap: '0.5rem',
+    padding: '0.75rem 1rem', overflowY: 'auto', flex: 1,
+  },
+  materialCard: {
+    border: '1px solid', borderRadius: '6px', padding: '0.5rem 0.75rem',
+    minWidth: '120px', transition: 'all 0.15s',
+  },
+  matName: { fontFamily: 'var(--font-title)', fontSize: '0.78rem', color: 'var(--text-primary)', margin: 0 },
+  matCount: { fontFamily: 'var(--font-body)', fontSize: '0.65rem', color: 'var(--text-secondary)', margin: '0.15rem 0 0' },
+  footer: {
+    padding: '0.75rem 1rem', borderTop: '1px solid rgba(255,255,255,0.1)',
+    display: 'flex', flexDirection: 'column', gap: '0.5rem',
+  },
+  selectedRow: { display: 'flex', flexWrap: 'wrap', gap: '0.4rem', minHeight: '24px' },
+  selectedTag: {
+    background: 'rgba(243,156,18,0.2)', border: '1px solid rgba(243,156,18,0.5)',
+    borderRadius: '4px', padding: '0.15rem 0.5rem',
+    fontFamily: 'var(--font-body)', fontSize: '0.72rem', color: '#f39c12',
+  },
+  craftBtn: {
+    padding: '0.55rem 1.5rem', background: 'rgba(155,89,182,0.25)',
+    border: '1px solid #9b59b6', borderRadius: '6px',
+    color: '#9b59b6', fontFamily: 'var(--font-body)', fontSize: '0.9rem',
+    fontWeight: 'bold', alignSelf: 'flex-end',
+    transition: 'opacity 0.15s',
+  },
+};
+
+// ─── Main Screen ──────────────────────────────────────────────────────────────
+
 export default function MapScreen() {
-  const { character, run, setScreen, enterRoom, advanceFloor, useItem, triggerBeat, dismissBeat, pendingBeat, endRun } = useGameStore();
+  const { character, run, setScreen, enterRoom, advanceFloor, useItem, removeInventoryItems, addItemToInventory, triggerBeat, dismissBeat, pendingBeat, endRun } = useGameStore();
   const { initBattle } = useBattleStore();
   const { getBonus } = useLegacyStore();
   const [showDeck, setShowDeck] = useState(false);
   const [showAbandon, setShowAbandon] = useState(false);
+  const [showCraft, setShowCraft] = useState(false);
   const t = useT();
   const tc = useContent();
 
   if (!character || !run) return null;
 
-  const monsters = run.chapter === 1 ? chapter1Monsters : chapter2Monsters;
-  const combos = run.chapter === 1 ? chapter1Combos : [...chapter1Combos, ...chapter2Combos];
-  const chapterData = run.chapter === 1 ? chapter1 : chapter2;
+  const monsters = run.chapter === 1 ? chapter1Monsters : run.chapter === 2 ? chapter2Monsters : chapter3Monsters;
+  const combos = run.chapter === 1 ? chapter1Combos : run.chapter === 2 ? [...chapter1Combos, ...chapter2Combos] : [...chapter1Combos, ...chapter2Combos, ...chapter3Combos];
+  const chapterData = run.chapter === 1 ? chapter1 : run.chapter === 2 ? chapter2 : chapter3;
 
   // Story beat triggers
   useEffect(() => {
@@ -235,9 +433,12 @@ export default function MapScreen() {
         <div style={styles.hudRight}>
           <span style={styles.gold}>💰 {character.gold}</span>
           <span style={styles.floor}>Chapter {run.chapter} · {t('map.floor', { n: run.floor })}</span>
-          <div style={{ display: 'flex', gap: '0.4rem' }}>
+          <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
             <button style={styles.deckBtn} onClick={() => setShowDeck(true)}>
               {t('map.deck', { n: character.deck.length })}
+            </button>
+            <button style={{ ...styles.deckBtn, borderColor: 'rgba(155,89,182,0.5)', color: '#9b59b6' }} onClick={() => setShowCraft(true)}>
+              ⚗️ 조합
             </button>
             <button style={styles.abandonBtn} onClick={() => setShowAbandon(true)}>
               🏳️
@@ -246,6 +447,16 @@ export default function MapScreen() {
         </div>
       </div>
       {showDeck && <DeckModal deck={character.deck} onClose={() => setShowDeck(false)} />}
+      {showCraft && (
+        <CraftModal
+          inventory={character.inventory}
+          onClose={() => setShowCraft(false)}
+          onCraft={(removeIndices, result) => {
+            removeInventoryItems(removeIndices);
+            addItemToInventory(result);
+          }}
+        />
+      )}
 
       {/* Chapter title */}
       <div style={styles.chapterTitle}>
@@ -287,8 +498,8 @@ export default function MapScreen() {
         <button style={styles.advanceBtn} onClick={() => advanceFloor()}>
           {run.floor < 3
             ? t('map.advanceFloor', { n: run.floor + 1 })
-            : run.chapter < 2
-              ? t('map.advanceChapter2')
+            : run.chapter < 3
+              ? `챕터 ${run.chapter + 1}로 진행 →`
               : t('map.adventureComplete')}
         </button>
       ) : (
@@ -297,23 +508,30 @@ export default function MapScreen() {
         </p>
       )}
 
-      {/* Inventory (potions only) */}
-      {character.inventory.filter(i => i.type === 'potion').length > 0 && (
+      {/* Inventory — map-usable potions + crafted combat items */}
+      {character.inventory.filter(i => i.type === 'potion' && !CRAFT_MATERIAL_IDS.has(i.id)).length > 0 && (
         <div style={styles.inventoryPanel}>
           <p style={styles.inventoryTitle}>{t('map.inventory')}</p>
           <div style={styles.inventoryRow}>
             {character.inventory
               .map((item, idx) => ({ item, idx }))
-              .filter(({ item }) => item.type === 'potion')
-              .map(({ item, idx }) => (
-                <div key={`${item.id}-${idx}`} style={styles.itemCard}>
-                  <p style={styles.itemName}>{tc.item(item.id, 'name', item.name)}</p>
-                  <p style={styles.itemDesc}>{tc.item(item.id, 'description', item.description)}</p>
-                  <button style={styles.useBtn} onClick={() => useItem(item.id)}>
-                    {t('map.useItem')}
-                  </button>
-                </div>
-              ))}
+              .filter(({ item }) => item.type === 'potion' && !CRAFT_MATERIAL_IDS.has(item.id))
+              .map(({ item, idx }) => {
+                const isCombatOnly = item.id.startsWith('crafted_') && !item.effects.some(e => e.type === 'heal' || e.type === 'mana');
+                return (
+                  <div key={`${item.id}-${idx}`} style={styles.itemCard}>
+                    <p style={styles.itemName}>{tc.item(item.id, 'name', item.name)}</p>
+                    <p style={styles.itemDesc}>{tc.item(item.id, 'description', item.description)}</p>
+                    {isCombatOnly ? (
+                      <p style={{ ...styles.itemDesc, color: '#9b59b6', marginTop: '0.25rem' }}>⚔️ 전투 전용</p>
+                    ) : (
+                      <button style={styles.useBtn} onClick={() => useItem(item.id)}>
+                        {t('map.useItem')}
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
           </div>
         </div>
       )}

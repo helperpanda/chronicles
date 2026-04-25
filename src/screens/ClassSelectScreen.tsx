@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useGameStore } from '../store/gameStore';
 import { useLegacyStore } from '../store/legacyStore';
-import { chapter1Classes, chapter2Classes, chapter1HiddenClasses, chapter1HiddenConditions, hiddenClassHints, chapter2HiddenClasses, chapter2HiddenConditions, chapter2HiddenHints } from '../data';
+import { chapter1Classes, chapter2Classes, chapter1HiddenClasses, chapter1HiddenConditions, hiddenClassHints, chapter2HiddenClasses, chapter2HiddenConditions, chapter2HiddenHints, chapter3HiddenClasses, chapter3HiddenConditions, chapter3HiddenHints } from '../data';
 import type { GameClass } from '../data/_schema';
 import { useT, useContent } from '../i18n';
 import '../styles/ClassSelect.css';
@@ -19,6 +19,8 @@ const CLASS_ICONS: Record<string, string> = {
 const HIDDEN_ICONS: Record<string, string> = {
   blood_knight: '🩸', void_mage: '🌌', phantom: '👻', inquisitor: '⚖️',
   rune_knight: '🔮', shadow_inquisitor: '☯️', storm_caller: '⚡', holy_avenger: '☀️',
+  flame_vanguard: '🔥', poison_alchemist: '☠️', legendary_hero: '🌟',
+  void_wanderer: '🌀', archmage: '🔯', dragon_heir: '🐉',
 };
 
 function ClassCard({ cls, isSelected, color, bg, onSelect }: {
@@ -57,19 +59,34 @@ function ClassCard({ cls, isSelected, color, bg, onSelect }: {
 }
 
 export default function ClassSelectScreen() {
-  const { startRun, setScreen, unlockedHiddenClasses } = useGameStore();
+  const { startRun, setScreen, unlockedHiddenClasses, pendingAwakenings, clearPendingAwakenings, careerData } = useGameStore();
   const { getBonus } = useLegacyStore();
   const [selected, setSelected] = useState<GameClass | null>(null);
   const [name, setName] = useState('');
   const t = useT();
   const tc = useContent();
 
-  const allHiddenClasses = [...chapter1HiddenClasses, ...chapter2HiddenClasses];
-  const allHiddenConditions = [...chapter1HiddenConditions, ...chapter2HiddenConditions];
-  const allHiddenHints = { ...hiddenClassHints, ...chapter2HiddenHints };
+  const allHiddenClasses = [...chapter1HiddenClasses, ...chapter2HiddenClasses, ...chapter3HiddenClasses];
+  const allHiddenConditions = [...chapter1HiddenConditions, ...chapter2HiddenConditions, ...chapter3HiddenConditions];
+  const allHiddenHints = { ...hiddenClassHints, ...chapter2HiddenHints, ...chapter3HiddenHints };
 
   const unlockedHidden = allHiddenClasses.filter(c => unlockedHiddenClasses.includes(c.id));
   const lockedHidden = allHiddenConditions.filter(c => !unlockedHiddenClasses.includes(c.id));
+
+  // Career progress helper for 50% hint
+  const getCareerProgress = (condId: string): { current: number; threshold: number } | null => {
+    const cond = allHiddenConditions.find(c => c.id === condId);
+    if (!cond || cond.condition.scope !== 'career' || !cond.condition.threshold) return null;
+    const { type, threshold } = cond.condition;
+    let current = 0;
+    if (type === 'career_chapter3_clears') current = careerData.chapterClears[3] ?? 0;
+    else if (type === 'career_deaths') current = careerData.totalDeaths;
+    else if (type === 'career_poison_damage') current = careerData.totalPoisonDamage;
+    else if (type === 'career_combos') current = careerData.totalCombos;
+    else if (type === 'career_dragon_kills') current = careerData.dragonKills;
+    else return null;
+    return { current, threshold };
+  };
 
   const handleStart = () => {
     if (!selected) return;
@@ -80,11 +97,35 @@ export default function ClassSelectScreen() {
       gold: getBonus('gold'),
       rareCard: getBonus('rareCard') > 0,
       revive: getBonus('revive') > 0,
+      startComboCard: getBonus('startComboCard') > 0,
+      extraCardChoice: getBonus('extraCardChoice'),
     });
   };
 
   return (
     <div className="cs-container" style={styles.container}>
+      {/* Awakening Modal */}
+      {pendingAwakenings.length > 0 && (
+        <div style={styles.awakeningOverlay}>
+          <div style={styles.awakeningBox}>
+            <p style={styles.awakeningTitle}>⚡ 각성!</p>
+            {pendingAwakenings.map(id => {
+              const cls = allHiddenClasses.find(c => c.id === id);
+              return (
+                <div key={id} style={styles.awakeningItem}>
+                  <span style={styles.awakeningIcon}>{HIDDEN_ICONS[id] ?? '✨'}</span>
+                  <div>
+                    <p style={styles.awakeningName}>{cls?.name ?? id} 해금!</p>
+                    <p style={styles.awakeningDesc}>{cls?.description ?? ''}</p>
+                  </div>
+                </div>
+              );
+            })}
+            <button style={styles.awakeningBtn} onClick={clearPendingAwakenings}>확인</button>
+          </div>
+        </div>
+      )}
+
       <button style={styles.backBtn} onClick={() => setScreen('title')}>{t('classSelect.back')}</button>
       <h2 className="cs-heading" style={styles.heading}>{t('classSelect.heading')}</h2>
       <p className="cs-hint" style={styles.hint}>{t('classSelect.hint')}</p>
@@ -157,13 +198,25 @@ export default function ClassSelectScreen() {
         )}
 
         <div style={styles.lockedGrid}>
-          {lockedHidden.map(cond => (
-            <div key={cond.id} className="cs-locked-card" style={styles.lockedCard}>
-              <span style={styles.lockedIcon}>❓</span>
-              <p style={styles.lockedName}>???</p>
-              <p style={styles.lockedHint}>{allHiddenHints[cond.id]}</p>
-            </div>
-          ))}
+          {lockedHidden.map(cond => {
+            const progress = getCareerProgress(cond.id);
+            const halfMet = progress ? progress.current >= progress.threshold / 2 : false;
+            const pct = progress ? Math.min(100, Math.floor((progress.current / progress.threshold) * 100)) : 0;
+            return (
+              <div key={cond.id} className="cs-locked-card" style={{ ...styles.lockedCard, opacity: halfMet ? 0.85 : 0.6 }}>
+                <span style={styles.lockedIcon}>{halfMet ? '🔒' : '❓'}</span>
+                <p style={{ ...styles.lockedName, color: halfMet ? 'rgba(243,156,18,0.7)' : undefined }}>
+                  {halfMet ? '???' : '???'}
+                </p>
+                <p style={styles.lockedHint}>{allHiddenHints[cond.id]}</p>
+                {progress && (
+                  <p style={{ ...styles.lockedHint, color: halfMet ? 'rgba(243,156,18,0.8)' : undefined, marginTop: '0.2rem' }}>
+                    달성률 {pct}% ({progress.current}/{progress.threshold})
+                  </p>
+                )}
+              </div>
+            );
+          })}
         </div>
       </div>
 
@@ -259,15 +312,46 @@ const styles: Record<string, React.CSSProperties> = {
     border: '1px solid rgba(255,255,255,0.08)',
     borderRadius: '6px', background: 'rgba(255,255,255,0.02)',
     display: 'flex', flexDirection: 'column', alignItems: 'center',
-    gap: '0.25rem', opacity: 0.6,
+    gap: '0.25rem',
   },
   lockedIcon: { fontSize: '1.2rem' },
   lockedName: { fontFamily: 'var(--font-title)', fontSize: '0.8rem', color: 'var(--text-secondary)', margin: 0 },
-  lockedHint: { fontFamily: 'var(--font-body)', fontSize: '0.6rem', color: 'var(--text-secondary)', textAlign: 'center', margin: 0, lineHeight: 1.4 },
+  lockedHint: { fontFamily: 'var(--font-body)', fontSize: '0.6rem', color: 'var(--text-secondary)', textAlign: 'center' as const, margin: 0, lineHeight: 1.4 },
   unlockedBadge: { fontFamily: 'var(--font-body)', fontSize: '0.6rem', color: '#f39c12', margin: '0.2rem 0 0', textAlign: 'center' },
   startBtn: {
     background: 'var(--text-gold)', border: 'none', color: '#111', cursor: 'pointer',
     borderRadius: '4px', fontWeight: 'bold', letterSpacing: '0.05em',
     fontFamily: 'var(--font-body)', whiteSpace: 'nowrap',
+  },
+  awakeningOverlay: {
+    position: 'fixed' as const, inset: 0, background: 'rgba(0,0,0,0.85)',
+    display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 500,
+  },
+  awakeningBox: {
+    background: 'rgba(15,10,25,0.98)', border: '1px solid rgba(243,156,18,0.6)',
+    borderRadius: '12px', padding: '2rem', maxWidth: '420px', width: '90%',
+    display: 'flex', flexDirection: 'column' as const, gap: '1rem', alignItems: 'center',
+    boxShadow: '0 0 40px rgba(243,156,18,0.3)',
+  },
+  awakeningTitle: {
+    fontFamily: 'var(--font-title)', fontSize: '1.4rem', color: '#f39c12',
+    margin: 0, textAlign: 'center' as const, letterSpacing: '0.1em',
+  },
+  awakeningItem: {
+    display: 'flex', gap: '0.75rem', alignItems: 'flex-start',
+    background: 'rgba(243,156,18,0.08)', border: '1px solid rgba(243,156,18,0.25)',
+    borderRadius: '8px', padding: '0.75rem', width: '100%',
+  },
+  awakeningIcon: { fontSize: '1.5rem' },
+  awakeningName: {
+    fontFamily: 'var(--font-title)', fontSize: '0.95rem', color: '#f39c12', margin: '0 0 0.2rem',
+  },
+  awakeningDesc: {
+    fontFamily: 'var(--font-body)', fontSize: '0.72rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.4,
+  },
+  awakeningBtn: {
+    padding: '0.6rem 2rem', background: 'linear-gradient(135deg, #f39c12, #e67e22)',
+    border: 'none', borderRadius: '6px', color: '#111', cursor: 'pointer',
+    fontFamily: 'var(--font-body)', fontSize: '1rem', fontWeight: 'bold',
   },
 };

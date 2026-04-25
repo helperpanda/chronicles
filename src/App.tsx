@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useGameStore } from './store/gameStore';
 import type { RunStats } from './store/gameStore';
 import { useLegacyStore, LEGACY_UPGRADES } from './store/legacyStore';
-import { chapter1, chapter2 } from './data';
+import { chapter1, chapter2, chapter3, chapter1SkillCards, chapter2SkillCards, chapter3SkillCards } from './data';
+import type { SkillCard } from './data/_schema';
 import TitleScreen from './screens/TitleScreen';
 import ClassSelectScreen from './screens/ClassSelectScreen';
 import MapScreen from './screens/MapScreen';
@@ -254,16 +255,41 @@ function LegacyScreen() {
 }
 
 function ChapterClearScreen() {
-  const { setScreen, run } = useGameStore(s => ({ setScreen: s.setScreen, run: s.run }));
+  const { setScreen, run, addCardToDeck, dismissCardChoice } = useGameStore(s => ({
+    setScreen: s.setScreen,
+    run: s.run,
+    addCardToDeck: s.addCardToDeck,
+    dismissCardChoice: s.dismissCardChoice,
+  }));
   const t = useT();
-  const chapterData = run?.chapter === 2 ? chapter2 : chapter1;
-  const prevChapter = chapterData.id - 1;
-  const prevData = prevChapter === 1 ? chapter1 : null;
-  const storyText = (prevData ?? chapter1).storyBeats.find(b => b.trigger === 'boss_defeated')?.text ?? '';
+  const [cardChosen, setCardChosen] = useState(false);
+
+  // prevChapter is the one just cleared; run.chapter is the one being entered
+  const prevChapter = (run?.chapter ?? 2) - 1;
+  const prevData = prevChapter === 1 ? chapter1 : prevChapter === 2 ? chapter2 : chapter3;
+  const nextData  = run?.chapter === 2 ? chapter2 : run?.chapter === 3 ? chapter3 : chapter2;
+  const storyText = prevData.storyBeats.find(b => b.trigger === 'boss_defeated')?.text ?? '';
+
+  // 3 random cards from the pool of the chapter being entered
+  const cardPool = useMemo(() => {
+    const pool = run?.chapter === 2 ? chapter2SkillCards
+      : run?.chapter === 3 ? chapter3SkillCards
+      : chapter1SkillCards;
+    const shuffled = [...pool].sort(() => Math.random() - 0.5);
+    return shuffled.slice(0, 3) as SkillCard[];
+  }, [run?.chapter]);
+
+  const handleCardPick = (card: SkillCard) => {
+    addCardToDeck(card);
+    dismissCardChoice();
+    setCardChosen(true);
+  };
+
+  const showCardChoice = run?.pendingCardChoice && !cardChosen;
 
   return (
     <div style={{
-      height: '100vh', display: 'flex', flexDirection: 'column',
+      minHeight: '100vh', display: 'flex', flexDirection: 'column',
       alignItems: 'center', justifyContent: 'center', gap: '1.5rem',
       background: 'var(--bg-primary)', padding: '2rem',
     }}>
@@ -287,20 +313,65 @@ function ChapterClearScreen() {
           Chapter {run?.chapter}
         </p>
         <p style={{ fontFamily: 'var(--font-body)', color: 'var(--text-secondary)', fontSize: '0.8rem', margin: 0, fontStyle: 'italic' }}>
-          {chapterData.subtitle}
+          {nextData.subtitle}
         </p>
       </div>
-      <button
-        onClick={() => setScreen('map')}
-        style={{
-          padding: '0.75rem 2.5rem', background: 'var(--text-gold)',
-          border: 'none', color: '#111', cursor: 'pointer',
-          fontFamily: 'var(--font-body)', fontSize: '1rem', borderRadius: '4px',
-          fontWeight: 'bold',
-        }}
-      >
-        {t('chapterClear.next')}
-      </button>
+
+      {/* Card choice from 유산의 지혜 legacy bonus */}
+      {showCardChoice && (
+        <div style={{
+          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem',
+          padding: '1.25rem', background: 'rgba(52,152,219,0.08)',
+          border: '1px solid rgba(52,152,219,0.4)', borderRadius: '10px',
+          maxWidth: '520px', width: '100%',
+        }}>
+          <p style={{ fontFamily: 'var(--font-title)', color: '#3498db', fontSize: '0.95rem', margin: 0 }}>
+            ✨ 유산의 지혜 — 카드 1장을 덱에 추가하라
+          </p>
+          <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', justifyContent: 'center' }}>
+            {cardPool.map(card => (
+              <button
+                key={card.id}
+                onClick={() => handleCardPick(card)}
+                style={{
+                  padding: '0.75rem 1rem', width: '150px',
+                  background: 'rgba(255,255,255,0.04)',
+                  border: '1px solid rgba(52,152,219,0.5)',
+                  borderRadius: '8px', cursor: 'pointer',
+                  display: 'flex', flexDirection: 'column', gap: '0.3rem',
+                  transition: 'all 0.15s', textAlign: 'left',
+                }}
+                onMouseEnter={e => (e.currentTarget.style.borderColor = '#3498db')}
+                onMouseLeave={e => (e.currentTarget.style.borderColor = 'rgba(52,152,219,0.5)')}
+              >
+                <span style={{ fontFamily: 'var(--font-title)', fontSize: '0.82rem', color: 'var(--text-primary)' }}>
+                  {card.name}
+                </span>
+                <span style={{ fontFamily: 'var(--font-body)', fontSize: '0.7rem', color: 'var(--text-secondary)', lineHeight: 1.3 }}>
+                  {card.description}
+                </span>
+                <span style={{ fontFamily: 'var(--font-body)', fontSize: '0.68rem', color: '#3498db', marginTop: '0.1rem' }}>
+                  MP {card.manaCost} · {t(`rarity.${card.rarity}`) ?? card.rarity}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {!showCardChoice && (
+        <button
+          onClick={() => setScreen('map')}
+          style={{
+            padding: '0.75rem 2.5rem', background: 'var(--text-gold)',
+            border: 'none', color: '#111', cursor: 'pointer',
+            fontFamily: 'var(--font-body)', fontSize: '1rem', borderRadius: '4px',
+            fontWeight: 'bold',
+          }}
+        >
+          {t('chapterClear.next')}
+        </button>
+      )}
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useGameStore } from '../store/gameStore';
+import { useGameStore, DRAGON_MONSTER_IDS } from '../store/gameStore';
 import { useBattleStore } from '../store/battleStore';
 import { chapter1, chapter2, chapter1Items, chapter2Items } from '../data';
 import type { SkillCard, Item } from '../data/_schema';
@@ -116,12 +116,12 @@ export default function BattleScreen() {
   const t = useT();
   const tc = useContent();
 
-  const { character, run, clearRoom, setScreen, takeDamage, gainExp, gainGold, incrementKills, incrementCombos, addTurns, addDamageTaken, useItem, triggerBeat, addItemToInventory, addRelic, endRun, syncHp } = useGameStore();
+  const { character, run, clearRoom, setScreen, takeDamage, gainExp, gainGold, incrementKills, incrementCombos, addTurns, addDamageTaken, addPoisonDamage, incrementDragonKills, useItem, triggerBeat, addItemToInventory, addRelic, endRun, syncHp } = useGameStore();
   const {
     phase, turn, hand, enemy, enemyCurrentHp, enemyShield,
     player, currentMana, maxMana, log, playCard, endPlayerTurn, resetBattle,
-    executeCombo, getAvailableCombo, playerDamageTaken,
-    playedThisTurn, availableCombos, healPlayer,
+    executeCombo, getAvailableCombo, playerDamageTaken, poisonDamageDealt,
+    playedThisTurn, availableCombos, applyEffect,
   } = useBattleStore();
 
   // Spawn float popups from new log entries
@@ -243,8 +243,10 @@ export default function BattleScreen() {
       }
     }
     incrementKills();
+    if (DRAGON_MONSTER_IDS.has(enemy.id)) incrementDragonKills();
     addTurns(turn);
     addDamageTaken(playerDamageTaken);
+    addPoisonDamage(poisonDamageDealt);
     if (enemy.tier === 'elite' && run) {
       const chData = run.chapter === 1 ? chapter1 : chapter2;
       const t = chData.storyBeats.find(b => b.trigger === 'elite_defeated')?.text;
@@ -257,6 +259,7 @@ export default function BattleScreen() {
 
   const handleDefeat = () => {
     addDamageTaken(playerDamageTaken);
+    addPoisonDamage(poisonDamageDealt);
     takeDamage(character.hp);
   };
 
@@ -365,8 +368,9 @@ export default function BattleScreen() {
           disabled={phase !== 'player_turn'}
           onUse={(id) => {
             const item = character.inventory.find(i => i.id === id);
+            if (!item) return;
             useItem(id);
-            item?.effects.forEach(e => { if (e.type === 'heal') healPlayer(e.value); });
+            item.effects.forEach(e => applyEffect(e, 'player'));
             setShowPotions(false);
           }}
         />
@@ -487,6 +491,7 @@ export default function BattleScreen() {
                 style={{ ...styles.abandonConfirm }}
                 onClick={() => {
                   addDamageTaken(playerDamageTaken);
+                  addPoisonDamage(poisonDamageDealt);
                   resetBattle();
                   endRun(false);
                 }}

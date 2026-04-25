@@ -52,8 +52,9 @@ interface BattleStore {
   availableCombo: string | null;
   availableCombos: ComboRecipe[];
 
-  // Damage tracking for hidden class unlock
+  // Damage tracking
   playerDamageTaken: number;
+  poisonDamageDealt: number;
 
   // Mana
   currentMana: number;
@@ -130,6 +131,7 @@ export const useBattleStore = create<BattleStore>((set, get) => ({
   availableCombo: null,
   availableCombos: [],
   playerDamageTaken: 0,
+  poisonDamageDealt: 0,
   currentMana: 3,
   maxMana: 3,
   log: [],
@@ -151,6 +153,7 @@ export const useBattleStore = create<BattleStore>((set, get) => ({
       availableCombo: null,
       availableCombos: combos,
       playerDamageTaken: 0,
+      poisonDamageDealt: 0,
       currentMana: Math.min(3 + bonusMana, 6),
       maxMana: 3,
       log: [],
@@ -211,12 +214,19 @@ export const useBattleStore = create<BattleStore>((set, get) => ({
 
     set({ phase: 'enemy_turn', playedThisTurn: [], availableCombo: null });
 
-    // Tick player statuses
-    set(prev => ({
-      player: prev.player
-        ? { ...prev.player, statuses: tickStatuses(prev.player.statuses) }
-        : null,
-    }));
+    // Tick player statuses + apply regen
+    set(prev => {
+      if (!prev.player) return prev;
+      const regen = prev.player.statuses.find(s => s.stat === 'regen');
+      let hp = prev.player.hp;
+      if (regen) {
+        hp = Math.min(hp + regen.value, prev.player.maxHp);
+        get().addLog(`💚 재생 ${regen.value} HP 회복`, `💚 Regen heals ${regen.value} HP`, 'heal');
+      }
+      return {
+        player: { ...prev.player, hp, statuses: tickStatuses(prev.player.statuses) },
+      };
+    });
 
     get().applyEnemyAction();
 
@@ -224,13 +234,16 @@ export const useBattleStore = create<BattleStore>((set, get) => ({
     set(prev => {
       const poison = prev.enemyStatuses.find(s => s.stat === 'poison');
       let newHp = prev.enemyCurrentHp;
+      let extraPoison = 0;
       if (poison) {
-        newHp = Math.max(0, newHp - poison.value);
-        get().addLog(`☠️ 독으로 ${poison.value} 데미지!`, `☠️ Poison deals ${poison.value} damage!`, 'damage');
+        extraPoison = poison.value;
+        newHp = Math.max(0, newHp - extraPoison);
+        get().addLog(`☠️ 독으로 ${extraPoison} 데미지!`, `☠️ Poison deals ${extraPoison} damage!`, 'damage');
       }
       return {
         enemyCurrentHp: newHp,
         enemyStatuses: tickStatuses(prev.enemyStatuses),
+        poisonDamageDealt: prev.poisonDamageDealt + extraPoison,
       };
     });
 
@@ -354,6 +367,12 @@ export const useBattleStore = create<BattleStore>((set, get) => ({
       return { enemyStatuses: [...s.enemyStatuses, status] };
     }
 
+    // Cleanse player debuffs
+    if (effect.type === 'special' && effect.stat === 'cleanse' && source === 'player') {
+      get().addLog(`✨ 모든 디버프 제거`, `✨ All debuffs cleansed`, 'buff');
+      return { player: { ...s.player, statuses: [] } };
+    }
+
     // Draw
     if (effect.type === 'draw' && source === 'player') {
       get().drawCards(effect.value);
@@ -418,7 +437,7 @@ export const useBattleStore = create<BattleStore>((set, get) => ({
     drawPile: [], hand: [], discardPile: [],
     player: null, enemy: null,
     enemyCurrentHp: 0, enemyShield: 0, enemyStatuses: [],
-    playedThisTurn: [], availableCombo: null, availableCombos: [], playerDamageTaken: 0,
+    playedThisTurn: [], availableCombo: null, availableCombos: [], playerDamageTaken: 0, poisonDamageDealt: 0,
     currentMana: 3, maxMana: 3,
     log: [], logCounter: 0,
   }),
