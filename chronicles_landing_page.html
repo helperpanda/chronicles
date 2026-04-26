@@ -1,0 +1,364 @@
+
+<!DOCTYPE html>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@400;700;900&family=Cinzel:wght@400;500;600&family=Crimson+Text:ital,wght@0,400;0,600;1,400;1,600&display=swap');
+
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --gold:#c9a84c;--gold-bright:#e8c56a;--gold-dim:#7a6030;
+  --bg:#060504;--bg2:#0d0b08;--bg3:#161310;
+  --text:#e8dcc8;--text2:#a89878;--text3:#6b5d48;
+  --red:#8b2020;--red2:#c04040;
+}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--text);font-family:'Crimson Text',serif;overflow-x:hidden;cursor:default}
+
+/* 배경 텍스처 */
+body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.03) 2px,rgba(0,0,0,.03) 4px);pointer-events:none;z-index:0}
+
+/* 네비 */
+nav{position:fixed;top:0;left:0;right:0;z-index:100;padding:16px 32px;display:flex;justify-content:space-between;align-items:center;background:linear-gradient(to bottom,rgba(6,5,4,.95),transparent);border-bottom:1px solid rgba(201,168,76,.1)}
+.nav-logo{font-family:'Cinzel',serif;font-size:.85rem;letter-spacing:.2em;color:var(--gold);text-transform:uppercase}
+.nav-links{display:flex;gap:24px;align-items:center}
+.nav-links a{color:var(--text2);text-decoration:none;font-size:.85rem;letter-spacing:.05em;transition:color .2s}
+.nav-links a:hover{color:var(--gold)}
+.nav-cta{background:transparent;border:1px solid var(--gold);color:var(--gold);padding:7px 18px;font-family:'Cinzel',serif;font-size:.75rem;letter-spacing:.1em;cursor:pointer;transition:all .2s;text-decoration:none}
+.nav-cta:hover{background:var(--gold);color:var(--bg)}
+
+/* 히어로 */
+.hero{position:relative;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:80px 24px 60px;overflow:hidden}
+.hero-bg{position:absolute;inset:0;background:radial-gradient(ellipse 80% 60% at 50% 40%,rgba(100,60,10,.15),transparent),radial-gradient(ellipse 40% 40% at 20% 60%,rgba(139,32,32,.08),transparent),radial-gradient(ellipse 40% 40% at 80% 40%,rgba(30,50,100,.08),transparent);pointer-events:none}
+.hero-ornament{font-size:.7rem;letter-spacing:.4em;color:var(--gold-dim);text-transform:uppercase;margin-bottom:20px;opacity:.8}
+.hero-title{font-family:'Cinzel Decorative',serif;font-size:clamp(2rem,6vw,4.5rem);font-weight:900;line-height:1.1;margin-bottom:8px;background:linear-gradient(180deg,var(--gold-bright) 0%,var(--gold) 50%,var(--gold-dim) 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;filter:drop-shadow(0 0 30px rgba(201,168,76,.3))}
+.hero-sub-title{font-family:'Cinzel',serif;font-size:clamp(.8rem,2vw,1.1rem);letter-spacing:.3em;color:var(--text3);text-transform:uppercase;margin-bottom:32px}
+.hero-desc{font-size:clamp(1rem,2vw,1.25rem);color:var(--text2);line-height:1.8;max-width:560px;margin:0 auto 48px;font-style:italic}
+.hero-btns{display:flex;gap:16px;justify-content:center;flex-wrap:wrap;margin-bottom:60px}
+.btn-primary{background:var(--gold);color:var(--bg);padding:14px 36px;font-family:'Cinzel',serif;font-size:.85rem;letter-spacing:.15em;cursor:pointer;border:none;text-decoration:none;display:inline-block;transition:all .3s;position:relative;overflow:hidden}
+.btn-primary::after{content:'';position:absolute;inset:0;background:linear-gradient(to right,transparent,rgba(255,255,255,.2),transparent);transform:translateX(-100%);transition:transform .4s}
+.btn-primary:hover::after{transform:translateX(100%)}
+.btn-primary:hover{background:var(--gold-bright);transform:translateY(-2px);box-shadow:0 8px 24px rgba(201,168,76,.3)}
+.btn-secondary{background:transparent;color:var(--text2);padding:14px 36px;font-family:'Cinzel',serif;font-size:.85rem;letter-spacing:.15em;cursor:pointer;border:1px solid rgba(168,152,120,.3);text-decoration:none;display:inline-block;transition:all .3s}
+.btn-secondary:hover{border-color:var(--text2);color:var(--text)}
+
+/* 스크롤 힌트 */
+.scroll-hint{display:flex;flex-direction:column;align-items:center;gap:8px;color:var(--text3);font-size:.7rem;letter-spacing:.2em;text-transform:uppercase;animation:bounce 2s ease infinite}
+.scroll-line{width:1px;height:40px;background:linear-gradient(to bottom,var(--gold-dim),transparent)}
+@keyframes bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(6px)}}
+
+/* 구분선 */
+.divider{display:flex;align-items:center;gap:16px;max-width:400px;margin:0 auto;padding:20px 0}
+.divider-line{flex:1;height:1px;background:linear-gradient(to right,transparent,var(--gold-dim),transparent)}
+.divider-icon{color:var(--gold-dim);font-size:.8rem}
+
+/* 피처 섹션 */
+.section{padding:80px 24px;position:relative;z-index:1}
+.section-label{font-family:'Cinzel',serif;font-size:.7rem;letter-spacing:.3em;color:var(--gold-dim);text-transform:uppercase;text-align:center;margin-bottom:12px}
+.section-title{font-family:'Cinzel',serif;font-size:clamp(1.4rem,3vw,2rem);color:var(--gold);text-align:center;margin-bottom:8px}
+.section-desc{color:var(--text2);text-align:center;font-size:1rem;font-style:italic;margin-bottom:48px;max-width:500px;margin-left:auto;margin-right:auto}
+
+.feature-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:1px;max-width:900px;margin:0 auto;border:1px solid rgba(201,168,76,.1);background:rgba(201,168,76,.1)}
+.feature{background:var(--bg2);padding:32px 28px;position:relative;overflow:hidden;transition:background .3s}
+.feature:hover{background:var(--bg3)}
+.feature::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(to right,transparent,var(--gold-dim),transparent);opacity:0;transition:opacity .3s}
+.feature:hover::before{opacity:1}
+.feature-icon{font-size:1.5rem;margin-bottom:16px;display:block}
+.feature-name{font-family:'Cinzel',serif;font-size:.9rem;color:var(--gold);margin-bottom:8px;letter-spacing:.05em}
+.feature-text{font-size:.9rem;color:var(--text2);line-height:1.7}
+
+/* 직업 섹션 */
+.class-scroll{display:flex;gap:12px;max-width:900px;margin:0 auto;overflow-x:auto;padding-bottom:8px;scrollbar-width:none}
+.class-scroll::-webkit-scrollbar{display:none}
+.class-card{background:var(--bg2);border:1px solid rgba(201,168,76,.15);padding:24px 20px;min-width:180px;flex-shrink:0;position:relative;transition:all .3s;cursor:default}
+.class-card::after{content:'';position:absolute;bottom:0;left:0;right:0;height:2px;background:var(--gold);transform:scaleX(0);transition:transform .3s}
+.class-card:hover{border-color:rgba(201,168,76,.4);transform:translateY(-4px)}
+.class-card:hover::after{transform:scaleX(1)}
+.class-card.hidden-cls{border-color:rgba(100,60,180,.2);background:rgba(20,10,40,.8)}
+.class-card.hidden-cls .class-icon{filter:blur(2px)}
+.class-icon{font-size:1.8rem;margin-bottom:12px;display:block}
+.class-name{font-family:'Cinzel',serif;font-size:.85rem;color:var(--gold);margin-bottom:4px}
+.class-name-en{font-size:.72rem;color:var(--text3);margin-bottom:8px;font-style:italic}
+.class-desc-card{font-size:.78rem;color:var(--text2);line-height:1.6}
+.hidden-badge{font-size:.65rem;color:#9060d0;border:1px solid rgba(144,96,208,.3);padding:1px 6px;display:inline-block;margin-top:8px;letter-spacing:.05em}
+
+/* 스크린샷 섹션 */
+.mockup-area{max-width:700px;margin:0 auto;background:var(--bg2);border:1px solid rgba(201,168,76,.15);overflow:hidden;position:relative}
+.mockup-bar{background:var(--bg3);padding:10px 16px;display:flex;align-items:center;gap:8px;border-bottom:1px solid rgba(201,168,76,.1)}
+.mockup-dot{width:10px;height:10px;border-radius:50%}
+.mockup-url{flex:1;background:var(--bg);border-radius:2px;padding:3px 10px;font-size:.7rem;color:var(--text3);font-family:monospace;margin:0 8px}
+.mockup-content{padding:20px;font-family:'Courier Prime',monospace;font-size:.78rem;line-height:1.9;color:var(--text2)}
+.mc-gold{color:var(--gold)}
+.mc-red{color:var(--red2)}
+.mc-green{color:#4a9232}
+.mc-blue{color:#3a6abd}
+.mc-dim{color:var(--text3)}
+
+/* 업데이트 섹션 */
+.update-list{max-width:600px;margin:0 auto;display:flex;flex-direction:column;gap:1px}
+.update-item{background:var(--bg2);padding:16px 20px;display:flex;gap:16px;align-items:flex-start;border-left:2px solid transparent;transition:border-color .2s}
+.update-item:hover{border-color:var(--gold)}
+.update-date{font-family:'Cinzel',serif;font-size:.7rem;color:var(--text3);min-width:70px;padding-top:2px}
+.update-content{}
+.update-title{font-size:.9rem;color:var(--text);margin-bottom:2px}
+.update-desc{font-size:.8rem;color:var(--text3);font-style:italic}
+.update-badge{font-size:.65rem;padding:1px 6px;border-radius:1px;margin-left:8px;vertical-align:middle}
+.badge-new{background:rgba(74,146,50,.2);color:#4a9232;border:1px solid rgba(74,146,50,.3)}
+.badge-fix{background:rgba(58,106,189,.2);color:#3a6abd;border:1px solid rgba(58,106,189,.3)}
+
+/* CTA 섹션 */
+.cta-section{padding:100px 24px;text-align:center;position:relative;overflow:hidden}
+.cta-bg{position:absolute;inset:0;background:radial-gradient(ellipse 60% 60% at 50% 50%,rgba(100,60,10,.12),transparent)}
+.cta-title{font-family:'Cinzel Decorative',serif;font-size:clamp(1.5rem,4vw,2.8rem);color:var(--gold);margin-bottom:16px}
+.cta-desc{color:var(--text2);font-size:1.1rem;font-style:italic;margin-bottom:40px}
+
+/* 푸터 */
+footer{border-top:1px solid rgba(201,168,76,.1);padding:32px 24px;text-align:center}
+.footer-logo{font-family:'Cinzel',serif;font-size:.9rem;color:var(--gold-dim);letter-spacing:.2em;margin-bottom:8px}
+.footer-text{font-size:.78rem;color:var(--text3)}
+.footer-links{display:flex;gap:20px;justify-content:center;margin-top:12px}
+.footer-links a{color:var(--text3);text-decoration:none;font-size:.78rem;transition:color .2s}
+.footer-links a:hover{color:var(--gold)}
+
+/* 파티클 */
+.particle{position:fixed;pointer-events:none;width:2px;height:2px;background:var(--gold);border-radius:50%;opacity:0;animation:float linear infinite}
+@keyframes float{0%{opacity:0;transform:translateY(0) translateX(0)}10%{opacity:.6}90%{opacity:.2}100%{opacity:0;transform:translateY(-100vh) translateX(var(--drift))}}
+</style>
+
+<nav>
+  <div class="nav-logo">Chronicles · of the · Forgotten</div>
+  <div class="nav-links">
+    <a href="#features">특징</a>
+    <a href="#classes">직업</a>
+    <a href="#updates">업데이트</a>
+    <a href="https://chronicles-five-opal.vercel.app/" class="nav-cta" target="_blank">플레이 →</a>
+  </div>
+</nav>
+
+<section class="hero">
+  <div class="hero-bg"></div>
+  <div class="hero-ornament">⚔ &nbsp; T e x t - B a s e d &nbsp; D e c k - B u i l d i n g &nbsp; R P G &nbsp; ⚔</div>
+  <h1 class="hero-title">Chronicles<br>of the Forgotten</h1>
+  <div class="hero-sub-title">잊혀진 기억을 되찾아라</div>
+  <p class="hero-desc">카드를 조합하고, 직업을 각성하고, 어둠 속 던전을 탐험하라.<br>당신의 선택이 전설을 만든다.</p>
+  <div class="hero-btns">
+    <a href="https://chronicles-five-opal.vercel.app/" target="_blank" class="btn-primary">⚔ &nbsp; 지금 무료 플레이</a>
+    <a href="#features" class="btn-secondary">게임 소개 ↓</a>
+  </div>
+  <div class="scroll-hint">
+    <div class="scroll-line"></div>
+    <span>scroll</span>
+  </div>
+</section>
+
+<section class="section" id="features">
+  <div class="section-label">Game Features</div>
+  <h2 class="section-title">왜 Chronicles인가</h2>
+  <p class="section-desc">이미지 하나 없이, 텍스트만으로 완성된 세계</p>
+  <div class="feature-grid">
+    <div class="feature">
+      <span class="feature-icon">🃏</span>
+      <div class="feature-name">덱빌딩 전투</div>
+      <p class="feature-text">30종 이상의 스킬 카드를 조합해 나만의 전투 스타일을 만든다. 같은 직업도 덱이 다르면 완전히 다른 플레이어.</p>
+    </div>
+    <div class="feature">
+      <span class="feature-icon">⚗️</span>
+      <div class="feature-name">비밀 조합 시스템</div>
+      <p class="feature-text">재료 아이템을 조합해 강력한 소모품을 만든다. 조합식은 공개되지 않는다. 직접 실험하고 발견하라.</p>
+    </div>
+    <div class="feature">
+      <span class="feature-icon">★</span>
+      <div class="feature-name">히든 직업 각성</div>
+      <p class="feature-text">조건은 숨겨져 있다. 오래 플레이할수록 유리하다. 어느 날 갑자기 "각성" 이벤트가 찾아온다.</p>
+    </div>
+    <div class="feature">
+      <span class="feature-icon">🏰</span>
+      <div class="feature-name">유산 강화 시스템</div>
+      <p class="feature-text">런이 끝날 때마다 유산 포인트 획득. 영구 강화로 다음 런을 더 강하게 시작한다. 죽어도 강해진다.</p>
+    </div>
+    <div class="feature">
+      <span class="feature-icon">📖</span>
+      <div class="feature-name">모듈식 챕터</div>
+      <p class="feature-text">챕터 1 카드가 챕터 3에서 더 강해진다. 새 챕터가 추가될수록 기존 덱의 조합도 늘어난다.</p>
+    </div>
+    <div class="feature">
+      <span class="feature-icon">🌐</span>
+      <div class="feature-name">브라우저 무료 플레이</div>
+      <p class="feature-text">설치 없음. 계정 없음. 링크 하나로 바로 시작. PC/모바일 모두 지원.</p>
+    </div>
+  </div>
+</section>
+
+<div class="divider"><div class="divider-line"></div><div class="divider-icon">✦</div><div class="divider-line"></div></div>
+
+<section class="section" id="classes">
+  <div class="section-label">Classes</div>
+  <h2 class="section-title">직업 & 각성</h2>
+  <p class="section-desc">기본 직업 8종 + 히든 직업 5종. 히든은 스스로 찾아야 한다.</p>
+  <div class="class-scroll">
+    <div class="class-card">
+      <span class="class-icon">⚔️</span>
+      <div class="class-name">철기사</div>
+      <div class="class-name-en">Iron Knight</div>
+      <div class="class-desc-card">강철 갑주와 불굴의 의지. 방어와 반격으로 싸운다.</div>
+    </div>
+    <div class="class-card">
+      <span class="class-icon">🔮</span>
+      <div class="class-name">비전학자</div>
+      <div class="class-name-en">Arcane Scholar</div>
+      <div class="class-desc-card">원소를 자유자재로 다루는 마법사. 낮은 체력을 마력으로 극복.</div>
+    </div>
+    <div class="class-card">
+      <span class="class-icon">🗡️</span>
+      <div class="class-name">그림자춤꾼</div>
+      <div class="class-name-en">Shadow Dancer</div>
+      <div class="class-desc-card">독과 기습. 어둠 속에서 춤추며 적을 무너뜨린다.</div>
+    </div>
+    <div class="class-card">
+      <span class="class-icon">✨</span>
+      <div class="class-name">여명수호자</div>
+      <div class="class-name-en">Dawn Keeper</div>
+      <div class="class-desc-card">빛과 치유. 신성한 심판으로 어둠을 정화한다.</div>
+    </div>
+    <div class="class-card">
+      <span class="class-icon">🌿</span>
+      <div class="class-name">자연술사</div>
+      <div class="class-name-en">Nature Shaman</div>
+      <div class="class-desc-card">숲과 교감하며 생명의 힘을 다룬다. Ch.2 해금.</div>
+    </div>
+    <div class="class-card">
+      <span class="class-icon">🐉</span>
+      <div class="class-name">용기사</div>
+      <div class="class-name-en">Dragon Knight</div>
+      <div class="class-desc-card">용의 힘을 계승한 기사. Ch.3 해금.</div>
+    </div>
+    <div class="class-card hidden-cls">
+      <span class="class-icon">👁️</span>
+      <div class="class-name">???</div>
+      <div class="class-name-en">Hidden Class</div>
+      <div class="class-desc-card">특정 조건을 달성하면 각성 이벤트가 찾아온다.</div>
+      <div class="hidden-badge">★ HIDDEN</div>
+    </div>
+    <div class="class-card hidden-cls">
+      <span class="class-icon">🌑</span>
+      <div class="class-name">???</div>
+      <div class="class-name-en">Hidden Class</div>
+      <div class="class-desc-card">오래 플레이한 자만이 알 수 있다.</div>
+      <div class="hidden-badge">★★ SECRET</div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"><div class="divider-line"></div><div class="divider-icon">✦</div><div class="divider-line"></div></div>
+
+<section class="section">
+  <div class="section-label">Gameplay</div>
+  <h2 class="section-title">이런 게임이에요</h2>
+  <p class="section-desc">텍스트로만 이루어진 전투 — 상상력이 그래픽이 된다</p>
+  <div class="mockup-area">
+    <div class="mockup-bar">
+      <div class="mockup-dot" style="background:#c04040"></div>
+      <div class="mockup-dot" style="background:#c9a84c"></div>
+      <div class="mockup-dot" style="background:#4a9232"></div>
+      <div class="mockup-url">chronicles-five-opal.vercel.app</div>
+    </div>
+    <div class="mockup-content">
+      <div class="mc-dim">─────────────────────────────────</div>
+      <div><span class="mc-gold">고대 용</span> &nbsp;|&nbsp; HP <span class="mc-red">847 / 1200</span> &nbsp;|&nbsp; 다음: <span class="mc-red">용염 브레스 (45뎀)</span></div>
+      <div class="mc-dim">─────────────────────────────────</div>
+      <div><span class="mc-gold">용기사 Lv.7</span> &nbsp;HP <span class="mc-green">62/130</span> &nbsp;MP <span class="mc-blue">40/60</span> &nbsp;🛡24</div>
+      <br>
+      <div class="mc-dim">▸ 4턴 시작 — 카드 3장 드로우</div>
+      <div class="mc-gold">▸ 【화염 포격】콤보 발동 — 검에 용의 불꽃이 깃든다.</div>
+      <div class="mc-red">▸ 고대 용에게 89 피해! 용의 비늘이 녹아내린다.</div>
+      <div>▸ 방어막 → 방어 +24 (철벽화)</div>
+      <div class="mc-dim">▸ 고대 용의 차례 — 용염 브레스 준비...</div>
+      <div class="mc-dim">─────────────────────────────────</div>
+      <br>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <span style="border:1px solid rgba(201,168,76,.4);padding:4px 10px;font-size:.75rem;color:var(--gold)">용비늘 강타 MP2</span>
+        <span style="border:1px solid rgba(58,106,189,.4);padding:4px 10px;font-size:.75rem;color:#3a6abd">철벽 방어 MP1</span>
+        <span style="border:1px solid rgba(192,64,64,.4);padding:4px 10px;font-size:.75rem;color:var(--red2)">용염 숨결 MP3</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"><div class="divider-line"></div><div class="divider-icon">✦</div><div class="divider-line"></div></div>
+
+<section class="section" id="updates">
+  <div class="section-label">Patch Notes</div>
+  <h2 class="section-title">업데이트 기록</h2>
+  <p class="section-desc" style="margin-bottom:32px">지속적으로 업데이트되는 세계</p>
+  <div class="update-list">
+    <div class="update-item">
+      <div class="update-date">2026.04</div>
+      <div class="update-content">
+        <div class="update-title">챕터 3 — 용의 산맥 <span class="update-badge badge-new">NEW</span></div>
+        <div class="update-desc">용기사 · 연금술사 · 히든 직업 3종 · 고대 용 보스</div>
+      </div>
+    </div>
+    <div class="update-item">
+      <div class="update-date">2026.04</div>
+      <div class="update-content">
+        <div class="update-title">조합 시스템 추가 <span class="update-badge badge-new">NEW</span></div>
+        <div class="update-desc">재료 조합으로 전투용 소모품 제작. 레시피는 비공개.</div>
+      </div>
+    </div>
+    <div class="update-item">
+      <div class="update-date">2026.04</div>
+      <div class="update-content">
+        <div class="update-title">유산 강화 시스템 <span class="update-badge badge-new">NEW</span></div>
+        <div class="update-desc">런 결과로 포인트 획득 → 영구 강화. 죽어도 강해진다.</div>
+      </div>
+    </div>
+    <div class="update-item">
+      <div class="update-date">2026.04</div>
+      <div class="update-content">
+        <div class="update-title">챕터 2 — 저주받은 숲 <span class="update-badge badge-fix">UPDATE</span></div>
+        <div class="update-desc">자연술사 · 기사단장 · 히든 직업 2종 추가</div>
+      </div>
+    </div>
+    <div class="update-item">
+      <div class="update-date">2026.04</div>
+      <div class="update-content">
+        <div class="update-title">베타 오픈</div>
+        <div class="update-desc">챕터 1 — 잊혀진 유적. 직업 4종으로 시작.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="cta-section">
+  <div class="cta-bg"></div>
+  <div class="hero-ornament" style="margin-bottom:16px">Free · No Install · No Account</div>
+  <h2 class="cta-title">지금 바로 시작하라</h2>
+  <p class="cta-desc">링크 하나로 던전이 열린다.<br>히든 직업을 먼저 찾는 자가 전설이 된다.</p>
+  <a href="https://chronicles-five-opal.vercel.app/" target="_blank" class="btn-primary" style="font-size:.95rem;padding:16px 48px">⚔ &nbsp; Chronicles 플레이하기</a>
+  <div style="margin-top:24px;display:flex;gap:20px;justify-content:center;flex-wrap:wrap">
+    <a href="#" style="color:var(--text3);font-size:.8rem;text-decoration:none">📸 인스타그램</a>
+    <a href="mailto:" style="color:var(--text3);font-size:.8rem;text-decoration:none">📧 버그 제보</a>
+  </div>
+</section>
+
+<footer>
+  <div class="footer-logo">Chronicles of the Forgotten</div>
+  <div class="footer-text">텍스트 기반 덱빌딩 로그라이크 RPG · 브라우저 무료 플레이</div>
+  <div class="footer-links">
+    <a href="https://chronicles-five-opal.vercel.app/" target="_blank">게임 플레이</a>
+    <a href="#">인스타그램</a>
+    <a href="#">버그 제보</a>
+  </div>
+</footer>
+
+<script>
+// 파티클
+for(let i=0;i<12;i++){
+  const p=document.createElement('div');
+  p.className='particle';
+  p.style.cssText=`left:${Math.random()*100}%;top:${Math.random()*100}%;--drift:${(Math.random()-.5)*80}px;animation-duration:${8+Math.random()*12}s;animation-delay:${Math.random()*8}s;width:${Math.random()<.3?3:1.5}px;height:${Math.random()<.3?3:1.5}px;opacity:0`;
+  document.body.appendChild(p);
+}
+// 스크롤 nav
+window.addEventListener('scroll',()=>{
+  document.querySelector('nav').style.background=window.scrollY>50?'rgba(6,5,4,.97)':'linear-gradient(to bottom,rgba(6,5,4,.95),transparent)';
+});
+</script>
